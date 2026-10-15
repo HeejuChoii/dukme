@@ -1,0 +1,140 @@
+[
+  {
+    "id": "place_001",
+    "name": "스파오 홍대점",
+    "area": "홍대",
+    "address": "서울 마포구 양화로 160",
+    "type": "매장",
+    "visits": [
+      { "group": "NCT WISH", "member": "리쿠", "date": "2026-08-01", "context": "브이로그" }
+    ],
+    "openHours": "11:00-22:00",
+    "note": "리쿠 공항 숄더백 대체템(스파오)과 팬사인회 볼캡 대체템을 직접 볼 수 있는 매장"
+  },
+  {
+    "id": "place_002",
+    "name": "오니기리와 이규",
+    "area": "홍대",
+    "address": "서울 마포구 와우산로 29길 14",
+    "type": "식당",
+    "visits": [
+      { "group": "NCT WISH", "member": "유우", "date": "2026-05-10", "context": "브이로그" }
+    ],
+    "openHours": "11:30-20:00",
+    "note": "대표 메뉴는 연어 오니기리 세트"
+  },
+  {
+    "id": "place_003",
+    "name": "카페 어니언 홍대",
+    "area": "홍대",
+    "address": "서울 마포구 동교로 8길 16",
+    "type": "카페",
+    "visits": [
+      { "group": "NCT WISH", "member": "사쿠야", "date": "2026-03-22", "context": "일상" }
+    ],
+    "openHours": "08:00-22:00",
+    "note": "대표 메뉴는 페스츄리와 아메리카노"
+  },
+  {
+    "id": "place_004",
+    "name": "산책사진관 홍대",
+    "area": "홍대",
+    "address": "서울 마포구 홍익로 6길 10",
+    "type": "포토스팟",
+    "visits": [],
+    "openHours": "10:00-21:00",
+    "note": "셀프 포토부스, 벽화 포토스팟으로도 유명"
+  },
+  {
+    "id": "place_005",
+    "name": "연희동 보끔",
+    "area": "홍대",
+    "address": "서울 마포구 신촌로 2길 7",
+    "type": "식당",
+    "visits": [
+      { "group": "Stray Kids", "member": "현진", "date": "2026-09-02", "context": "브이로그" }
+    ],
+    "openHours": "11:00-21:30",
+    "note": "대표 메뉴는 로제 떡볶이"
+  },
+  {
+    "id": "place_006",
+    "name": "무신사 스탠다드 홍대",
+    "area": "홍대",
+    "address": "서울 마포구 어울마당로 60",
+    "type": "매장",
+    "visits": [],
+    "openHours": "11:00-22:00",
+    "note": "데일리 캐주얼 의류 매장"
+  },
+  {
+    "id": "place_007",
+    "name": "홍대 걷고싶은거리 포토월",
+    "area": "홍대",
+    "address": "서울 마포구 양화로 ",
+    "type": "포토스팟",
+    "visits": [
+      { "group": "NCT WISH", "member": "소운", "date": "2026-07-27", "context": "브이로그" }
+    ],
+    "openHours": "24시간",
+    "note": "버스킹과 야외 공연이 자주 열리는 명소"
+  },
+  {
+    "id": "place_008",
+    "name": "대림창고",
+    "area": "성수",
+    "address": "서울 성동구 성수이로 78",
+    "type": "카페",
+    "visits": [
+      { "group": "Stray Kids", "member": "방찬", "date": "2026-06-11", "context": "화보" }
+    ],
+    "openHours": "10:30-22:00",
+    "note": "옛 창고를 개조한 대형 카페, 화보 촬영지로 자주 쓰임"
+  },
+  {
+    "id": "place_009",
+    "name": "성수연방",
+    "area": "성수",
+    "address": "서울 성동구 성수이로 118",
+    "type": "매장",
+    "visits": [],
+    "openHours": "11:00-21:00",
+    "note": "로컬 브랜드 편집 매장과 푸드코트"
+  },
+  {
+    "id": "place_010",
+    "name": "어니언 성수",
+    "area": "성수",
+    "address": "서울 성동구 아차산로 9길 8",
+    "type": "카페",
+    "visits": [
+      { "group": "Stray Kids", "member": "한", "date": "2026-04-19", "context": "브이로그" }
+    ],
+    "openHours": "07:00-22:00",
+    "note": "옛 공장 건물을 개조한 베이커리 카페, 대표 메뉴는 크루아상"
+  },
+  {
+    "id": "place_011",
+    "name": "성수 그라운드시소",
+    "area": "성수",
+    "address": "서울 성동구 성수이로 118",
+    "type": "포토스팟",
+    "visits": [
+      { "group": "Stray Kids", "member": "필릭스", "date": "2026-02-05", "context": "화보" }
+    ],
+    "openHours": "10:00-19:00",
+    "note": "전시 공간, 포토스팟으로 인기"
+  },
+  {
+    "id": "place_012",
+    "name": "송정식당 성수점",
+    "area": "성수",
+    "address": "서울 성동구 성수일로 90",
+    "type": "식당",
+    "visits": [
+      { "group": "NCT WISH", "member": "켄", "date": "2026-01-15", "context": "브이로그" }
+    ],
+    "openHours": "11:00-21:00",
+    "note": "대표 메뉴는 숙성 육회비빔밥"
+  }
+]

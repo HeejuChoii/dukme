@@ -1,0 +1,186 @@
+// 덕메 (dukme) backend: one Croche agent + one web chat screen, per PRD.md.
+// Local long-running Node server (no serverless). Conversation + memory persist via FileStorage
+// so a restart keeps context (PRD §5). Streaming only: agent.subscribe + agent.send (no `request`).
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { networkInterfaces } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Croche, type AgentEvent } from "@h1r-ai/croche";
+import { FileStorage } from "@h1r-ai/croche/node";
+import { toolDeclarations, toolHandlers } from "./tools/index.js";
+import { onCard } from "./bus.js";
+import { resetState, readState } from "./state.js";
+import { loadItems, loadPlaces } from "./data.js";
+
+const here = fileURLToPath(new URL(".", import.meta.url));
+const { CROCHE_PROJECT_KEY, CROCHE_DEBUG_KEY, PORT = "3000", HOST = "0.0.0.0" } = process.env;
+const DEMO_USER = "demo-user"; // PRD §12: 로그인 없음 — 데모는 한 명의 고정 사용자
+
+function lanAddresses(): string[] {
+  const addresses: string[] = [];
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (entry.family === "IPv4" && !entry.internal) addresses.push(entry.address);
+    }
+  }
+  return addresses;
+}
+
+if (!CROCHE_PROJECT_KEY || !CROCHE_DEBUG_KEY) {
+  console.error(
+    "CROCHE_PROJECT_KEY / CROCHE_DEBUG_KEY가 없어요. .env를 만들고 `node --env-file=.env --import tsx src/server.ts`로 실행하세요.",
+  );
+  process.exit(2);
+}
+
+const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 따라 하기)을 기억하고 도와주는 AI 비서야.
+
+[언어 — 절대 규칙]
+- 어떤 상황에서도 영어 문장을 쓰지 않는다. 도구를 호출하기 전이든 후든, 사용자에게 보이는 모든 텍스트는 100% 한국어다.
+- 도구를 호출하기 전에 "확인해볼게", "I'll get right on it" 같은 계획을 알리는 메시지를 따로 보내지 않는다. 조용히 필요한 도구를 다 호출한 뒤, 결과가 다 나오면 그제서야 한국어로 답한다.
+
+[말투]
+- 친근한 또래 팬처럼, 짧고 자연스러운 한국어 반말/존댓말 섞어서 (반말 베이스, 과하지 않게).
+- 한 번에 여러 질문을 쏟아내지 않는다. 대화 흐름 속에서 자연스럽게 묻는다.
+
+[처음 만났을 때]
+- 사용자가 최애 그룹/멤버를 말하면 반가워하고, 아직 모른다면 대화 자연스럽게 흘러가는 중에 예산대나 사이즈(상의/하의/신발)를 가볍게 물어봐. 한 번에 다 묻지 말 것.
+
+[한 메시지에 요청이 여러 개일 때 — 매우 중요]
+- 사용자는 한 메시지에 여러 요청을 한꺼번에 보낼 수 있다 (예: "나 리쿠 최애야, 가방 찾아줘, 찜할게, 코스도 짜줘"처럼 한 문장에 소개+검색+대체템+찜+코스짜기가 다 들어있는 경우).
+- 이럴 때 일부만 처리하고 멈추면 안 된다. 메시지에 적힌 요청을 하나씩 순서대로 전부 처리한다: 필요한 도구를 그 순서대로 다 호출하고(예: searchItem → findAlternative → addWishlist → planRoute), 마지막 요청까지 답한 뒤에야 턴을 마친다.
+- 중간에 끊지 말고, 마지막에 "~까지 다 했어" 식으로 전체를 한 번에 정리해서 답해도 된다. 순서상 뒤에 있는 요청(특히 코스 짜기 같은 마지막 요청)을 빠뜨리지 않도록 메시지를 끝까지 다시 확인한다.
+- 도구를 여러 번 호출해야 해서 턴이 길어져도, "잠깐만", "확인해볼게" 같은 중간 확인용 메시지를 따로 보내지 않는다. 사용자에게는 모든 도구 호출이 끝난 뒤의 답변 하나만 보인다. 항상 한국어로 답한다 (영어로 답하지 않는다).
+
+[도구 사용]
+- searchItem: 멤버·상황(공항/무대/브이로그/팬사인회/화보/일상)·카테고리·특징 묘사로 "원래 제품(검수된 정품)"을 찾을 때. 기본적으로 대체템은 안 섞여 나온다.
+- findAlternative: searchItem으로 찾은 원래 제품의 id로, 그 가격이 비싸거나 사용자가 예산을 말했을 때 대체템을 그 예산 안에서 찾을 때. 사용자가 "대체템", "싼 거", "비슷한 거 싸게" 같은 말을 하거나 예산을 언급하면, searchItem 다음에 반드시 이 도구도 호출해서 따로 보여준다 (searchItem 결과만으로 대체템을 지어내지 않는다).
+- addWishlist: 사용자가 특정 아이템을 "찜", "할래", "A로 할래" 등 명확히 고를 때만 호출.
+- planRoute: 사용자가 날짜·지역을 주고 성지 코스/동선을 짜달라고 할 때. 이미 다녀온 곳은 자동으로 빠지고, 사용자가 찜한 아이템의 브랜드 매장이 있으면 코스에 포함돼. 같은 턴에 addWishlist도 같이 호출했다면, 방금 찜한 그 itemId를 planRoute의 itemIds에도 꼭 같이 넘겨줘 (저장 순서에 상관없이 브랜드 매장이 코스에 바로 반영되게).
+- 이 네 가지 도구가 지금 가진 전부야. "보유템으로 표시해줘"나 "다녀왔다고 기록해줘" 같은 요청은 아직 처리하는 도구가 없으니, 지어내지 말고 "그 기능은 내일 추가될 예정이야" 식으로 솔직하게 답해.
+
+[정확성 — 가장 중요]
+- 도구가 반환한 데이터 밖의 사실은 절대 지어내지 않는다. 검색 결과가 비어 있으면 "아직 확인되지 않은 정보예요"라고 솔직히 답한다.
+- 모든 아이템 추천에는 "원래 제품(검수됨)"인지 "대체템"인지 구분해서 말해준다.
+
+[표정 마커]
+- 메시지 안에 :happy:, :think:, :cheer: 마커를 자연스럽게 섞어서 덕메의 표정을 보여준다 (아래 markerGuide 참고).
+
+[응답 길이]
+- 채팅 화면에 맞게 보통 2~5문장 내로 답한다. 카드로 보여줄 아이템/코스 목록은 도구 결과가 화면에 따로 카드로 뜨니, 텍스트로 전부 나열하지 말고 요약만 해.`;
+
+const MARKER_GUIDE =
+  ":happy: 기쁠 때 (사용자가 반가운 소식을 전했거나, 좋은 걸 찾았거나, 찜을 골랐을 때도 포함). :think: 아이템/코스를 찾는 중이거나 고민할 때 (도구를 호출하기 직전/중일 때 특히). :cheer: 사용자가 실제로 템을 '샀다'거나 성지를 '다녀왔다'고 말했을 때만 — 가장 신나는 순간이니 찜 정도에는 happy를 쓰고 cheer는 아껴둔다.";
+
+const croche = await Croche.open({
+  projectKey: CROCHE_PROJECT_KEY,
+  // 개발용 debug key만 사용 (PRD §5). 프로덕션 배포는 이 해커톤 범위 밖(PRD §12).
+  debugKey: CROCHE_DEBUG_KEY,
+  user: DEMO_USER,
+  storage: new FileStorage(join(here, "..", ".croche")),
+  config: {
+    model: "deepseek/deepseek-v4.1-flash",
+    instructions: INSTRUCTIONS,
+    markerGuide: MARKER_GUIDE,
+    tools: toolDeclarations,
+    // 한 메시지에 여러 요청이 들어와 searchItem→findAlternative→addWishlist→planRoute까지
+    // 한 턴에서 전부 호출해야 하는 경우가 있어, 기본값보다 넉넉하게 잡아둔다.
+    maxIterations: 12,
+  },
+  handlers: toolHandlers,
+});
+const agent = await croche.agent();
+
+// 이 데모는 방문자 전체가 하나의 대화를 공유한다 (PRD: 로그인 없는 데모 1화면).
+const pages = new Set<ServerResponse>();
+const sendEvent = (res: ServerResponse, payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+agent.subscribe({
+  onEvent: (event: AgentEvent) => {
+    for (const page of pages) sendEvent(page, { source: "agent", event });
+  },
+});
+onCard((card) => {
+  for (const page of pages) sendEvent(page, { source: "card", event: card });
+});
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  let body = "";
+  for await (const chunk of req) body += chunk;
+  return body;
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    if (req.method === "GET" && req.url === "/") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(await readFile(join(here, "..", "public", "index.html")));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/events") {
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      pages.add(res);
+      req.on("close", () => pages.delete(res));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/send") {
+      const body = await readBody(req);
+      const text = String(JSON.parse(body || "{}").text ?? "").trim().slice(0, 4000);
+      if (!text) {
+        res.writeHead(400).end();
+        return;
+      }
+      const receipt = await agent.send({ id: randomUUID(), text });
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(receipt));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/reset") {
+      // "새 대화": 대화창만 비움 (기억은 유지). "기억 초기화": 대화 + AI 기억 + 찜/보유/방문 목록까지 전부 비움(시연 리셋용).
+      const body = await readBody(req);
+      const scope = String(JSON.parse(body || "{}").scope ?? "conversation");
+      await agent.clearHistory();
+      if (scope === "all") {
+        await agent.memory.clear();
+        await resetState(DEMO_USER);
+      }
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, scope }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/state") {
+      // "덕메가 기억하는 것" 패널: 자유 텍스트 기억(최애·예산·사이즈 등)은 Croche가 대화에서 알아서 적어두고,
+      // 찜/보유/방문 목록은 앱이 도구 호출 때마다 authoritative하게 들고 있는다 (PRD §7).
+      const memory = agent.memory.list();
+      const [items, places, appState] = await Promise.all([loadItems(), loadPlaces(), readState(DEMO_USER)]);
+      const wishlist = appState.wishlist.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+      const owned = appState.owned.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+      const visitedPlaces = appState.visitedPlaces.map((id) => places.find((p) => p.id === id)).filter(Boolean);
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ memory, wishlist, owned, visitedPlaces }));
+      return;
+    }
+    res.writeHead(404).end();
+  } catch (error) {
+    console.error("request failed:", error);
+    if (!res.headersSent) res.writeHead(500).end();
+  }
+});
+
+server.listen(Number(PORT), HOST, () => {
+  console.log(`덕메 서버: http://localhost:${PORT}`);
+  for (const ip of lanAddresses()) console.log(`  같은 와이파이: http://${ip}:${PORT}`);
+});
+
+const stop = async () => {
+  server.close();
+  await croche.close();
+  process.exit(0);
+};
+process.on("SIGINT", stop);
+process.on("SIGTERM", stop);

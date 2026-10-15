@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>덕메</title>
+<style>
+  :root {
+    --accent: #02a5c8;
+    --accent-dark: #018aa8;
+    --bg: #ffffff;
+    --text: #111111;
+    --muted: #666666;
+    --border: #e6e6e6;
+    --panel-bg: #f7fcfd;
+    --badge-original: #02a5c8;
+    --badge-alt: #999999;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+  body { font: 15px/1.5 -apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif; display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;
+  }
+  header h1 { font-size: 1.1rem; margin: 0; color: var(--accent-dark); }
+  header .spacer { flex: 1; }
+  header button {
+    background: #fff; border: 1px solid var(--accent); color: var(--accent-dark);
+    border-radius: 8px; padding: .4rem .7rem; font-size: .85rem; cursor: pointer;
+  }
+  header button:hover { background: var(--panel-bg); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #chat-col { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #memory-col {
+    width: 300px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel-bg);
+    padding: .9rem; overflow-y: auto;
+  }
+  @media (max-width: 720px) {
+    main { flex-direction: column; }
+    #memory-col { width: 100%; border-left: none; border-top: 1px solid var(--border); max-height: 40vh; }
+  }
+
+  #log { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+  .row { display: flex; }
+  .row.you { justify-content: flex-end; }
+  .bubble {
+    max-width: 80%; padding: .55rem .8rem; border-radius: 14px; white-space: pre-wrap; word-break: break-word;
+  }
+  .row.you .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .row.agent .bubble { background: var(--panel-bg); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .row.system .bubble { background: transparent; color: var(--muted); font-size: .8rem; margin: 0 auto; }
+
+  .cards { display: flex; flex-direction: column; gap: .5rem; padding: 0 1rem; }
+  .card-group-label { font-size: .8rem; color: var(--muted); margin: .2rem 0 0; }
+  .item-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: .6rem .75rem; display: flex; gap: .6rem; align-items: center;
+    background: #fff;
+  }
+  .item-thumb {
+    width: 44px; height: 44px; border-radius: 8px; background: var(--accent); opacity: .18; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: var(--accent-dark); opacity: 1;
+    background: #e6f7fa;
+  }
+  .item-info { flex: 1; min-width: 0; }
+  .item-info .title { font-weight: 600; font-size: .92rem; }
+  .item-info .meta { font-size: .78rem; color: var(--muted); }
+  .item-info .price { font-weight: 700; font-size: .95rem; margin-top: .1rem; }
+  .badge {
+    display: inline-block; font-size: .68rem; padding: .1rem .45rem; border-radius: 999px; color: #fff; margin-left: .4rem;
+    vertical-align: middle;
+  }
+  .badge.original { background: var(--badge-original); }
+  .badge.alt { background: var(--badge-alt); }
+  .wish-btn {
+    border: 1px solid var(--accent); color: var(--accent-dark); background: #fff; border-radius: 8px;
+    padding: .3rem .6rem; font-size: .8rem; cursor: pointer; flex-shrink: 0;
+  }
+  .wish-btn:hover { background: var(--panel-bg); }
+  .wish-btn:disabled { opacity: .5; cursor: default; }
+
+  .timeline { border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; background: #fff; }
+  .timeline h4 { margin: 0 0 .4rem; font-size: .9rem; color: var(--accent-dark); }
+  .stop { display: flex; gap: .6rem; padding: .35rem 0; border-top: 1px dashed var(--border); }
+  .stop:first-child { border-top: none; }
+  .stop .time { width: 46px; flex-shrink: 0; font-weight: 700; font-size: .82rem; color: var(--accent-dark); }
+  .stop .body .name { font-weight: 600; font-size: .88rem; }
+  .stop .body .meta { font-size: .76rem; color: var(--muted); }
+
+  form#composer {
+    display: flex; gap: .5rem; padding: .7rem 1rem; border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  form#composer input {
+    flex: 1; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 10px; font-size: .95rem;
+  }
+  form#composer button {
+    background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: .6rem 1.1rem; font-size: .95rem; cursor: pointer;
+  }
+  form#composer button:hover { background: var(--accent-dark); }
+
+  #memory-col h3 { font-size: .85rem; margin: 0 0 .4rem; color: var(--accent-dark); }
+  #memory-col .section { margin-bottom: 1rem; }
+  #memory-col ul { margin: 0; padding-left: 1.1rem; font-size: .82rem; }
+  #memory-col li { margin-bottom: .25rem; }
+  #memory-col .empty { font-size: .78rem; color: var(--muted); }
+</style>
+
+<header>
+  <div class="avatar" id="avatar">🙂</div>
+  <h1>덕메</h1>
+  <div class="spacer"></div>
+  <button id="btn-new-chat">새 대화</button>
+  <button id="btn-reset-memory">기억 초기화</button>
+</header>
+
+<main>
+  <section id="chat-col">
+    <div id="log"></div>
+    <form id="composer" autocomplete="off">
+      <input id="text" placeholder="덕메에게 말해보세요 (예: 나 NCT WISH 리쿠 최애야)">
+      <button type="submit">보내기</button>
+    </form>
+  </section>
+  <aside id="memory-col">
+    <h3>덕메가 기억하는 것</h3>
+    <div class="section">
+      <div id="memory-list"></div>
+    </div>
+    <div class="section">
+      <strong style="font-size:.8rem;">찜한 아이템</strong>
+      <div id="wishlist-list"></div>
+    </div>
+    <div class="section">
+      <strong style="font-size:.8rem;">보유 아이템</strong>
+      <div id="owned-list"></div>
+    </div>
+    <div class="section">
+      <strong style="font-size:.8rem;">다녀온 성지</strong>
+      <div id="visited-list"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+  const log = document.getElementById('log');
+  const avatar = document.getElementById('avatar');
+  const bubbles = new Map(); // message id -> element
+
+  // 같은 턴(같은 사용자 입력) 안에서 "원래 제품" 카드가 searchItem과 findAlternative 양쪽에서
+  // 중복으로 뜨지 않게, 턴마다 이미 보여준 원래 제품 카드를 추적한다.
+  let currentTurnInputId = null;
+  let turnOriginalCards = new Map(); // itemId -> card element
+  function ensureTurn(inputId) {
+    if (inputId !== currentTurnInputId) {
+      currentTurnInputId = inputId;
+      turnOriginalCards = new Map();
+    }
+  }
+
+  const won = (n) => n.toLocaleString('ko-KR') + '원';
+  const CATEGORY_ICON = { "가방": "👜", "모자": "🧢", "신발": "👟", "목걸이": "📿", "니트": "🧶", "아우터": "🧥", "선글라스": "🕶️", "이어링": "💎", "셔츠": "👔", "반지": "💍", "벨트": "🧵" };
+  const TYPE_ICON = { "식당": "🍽️", "카페": "☕", "매장": "🏬", "포토스팟": "📸" };
+
+  function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+  function rowBubble(id, cls) {
+    if (!bubbles.has(id)) {
+      const row = document.createElement('div');
+      row.className = 'row ' + cls;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      row.append(bubble);
+      log.append(row);
+      bubbles.set(id, bubble);
+    }
+    return bubbles.get(id);
+  }
+
+  function systemNote(text) {
+    const row = document.createElement('div');
+    row.className = 'row system';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    row.append(bubble);
+    log.append(row);
+    scrollDown();
+  }
+
+  function itemCard(item, groupLabel) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    const thumb = document.createElement('div');
+    thumb.className = 'item-thumb';
+    thumb.textContent = CATEGORY_ICON[item.category] || '🏷️';
+    const info = document.createElement('div');
+    info.className = 'item-info';
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = `${item.brand} · ${item.name}`;
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (item.isOriginal ? 'original' : 'alt');
+    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : '대체템';
+    title.append(badge);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${item.group} ${item.member} · ${item.situation}`;
+    const price = document.createElement('div');
+    price.className = 'price';
+    price.textContent = won(item.price);
+    if (typeof item.savingsVsOriginal === 'number' && item.savingsVsOriginal > 0) {
+      price.textContent += ` (원래 제품보다 ${won(item.savingsVsOriginal)} 저렴)`;
+    }
+    info.append(title, meta, price);
+    const wishBtn = document.createElement('button');
+    wishBtn.className = 'wish-btn';
+    wishBtn.textContent = '찜하기';
+    wishBtn.onclick = () => sendText(`${item.name} (${item.id}) 찜해줘`);
+    card.append(thumb, info, wishBtn);
+    return card;
+  }
+
+  function cardsBlock() {
+    const wrap = document.createElement('div');
+    wrap.className = 'cards';
+    log.append(wrap);
+    return wrap;
+  }
+
+  function renderSearchItem(data) {
+    const wrap = cardsBlock();
+    if (!data.results || data.results.length === 0) {
+      systemNote('검색 결과가 없어요. 아직 확인되지 않은 정보예요.');
+      return;
+    }
+    for (const item of data.results) {
+      const card = itemCard(item);
+      wrap.append(card);
+      if (item.isOriginal) turnOriginalCards.set(item.id, card);
+    }
+    scrollDown();
+  }
+
+  function renderFindAlternative(data) {
+    const wrap = cardsBlock();
+    // 같은 턴에서 searchItem이 이미 이 원래 제품 카드를 보여줬다면, 새로 만들지 않고
+    // 그 카드를 여기로 옮겨서 대체템 묶음 바로 위에 한 번만 보이게 한다.
+    const existing = turnOriginalCards.get(data.original.id);
+    if (existing && existing.isConnected) {
+      existing.remove();
+      wrap.append(existing);
+    } else {
+      const card = itemCard(data.original);
+      wrap.append(card);
+      turnOriginalCards.set(data.original.id, card);
+    }
+    if (data.alternatives.length === 0) {
+      systemNote('예산 안의 대체템을 아직 찾지 못했어요.');
+    } else {
+      const label = document.createElement('div');
+      label.className = 'card-group-label';
+      label.textContent = '대체템';
+      wrap.append(label);
+      for (const alt of data.alternatives) wrap.append(itemCard(alt));
+    }
+    scrollDown();
+  }
+
+  function renderPlanRoute(data) {
+    const wrap = cardsBlock();
+    const box = document.createElement('div');
+    box.className = 'timeline';
+    const title = document.createElement('h4');
+    title.textContent = `${data.area} 코스${data.date ? ' · ' + data.date : ''}`;
+    box.append(title);
+    if (!data.course || data.course.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'meta';
+      p.textContent = data.reason || '짤 수 있는 코스가 없어요.';
+      box.append(p);
+    } else {
+      for (const stop of data.course) {
+        const row = document.createElement('div');
+        row.className = 'stop';
+        const time = document.createElement('div');
+        time.className = 'time';
+        time.textContent = stop.time;
+        const body = document.createElement('div');
+        body.className = 'body';
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}` + (stop.isBrandMatch ? ' · 착용 브랜드 매장' : '');
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const visitNote = (stop.visits || []).map(v => `${v.member}(${v.date})`).join(', ');
+        meta.textContent = `${stop.type} · ${stop.note}` + (visitNote ? ` · 방문: ${visitNote}` : '');
+        body.append(name, meta);
+        row.append(time, body);
+        box.append(row);
+      }
+    }
+    wrap.append(box);
+    scrollDown();
+  }
+
+  function renderAddWishlist(data) {
+    const text = data.alreadyInWishlist
+      ? `이미 위시리스트에 있어요: ${data.item.name}`
+      : `위시리스트에 추가했어요: ${data.item.name}`;
+    systemNote(text);
+    refreshMemoryPanel();
+  }
+
+  const handlers = {
+    searchItem: renderSearchItem,
+    findAlternative: renderFindAlternative,
+    addWishlist: renderAddWishlist,
+    planRoute: renderPlanRoute,
+  };
+
+  const es = new EventSource('/events');
+  es.onmessage = ({ data }) => {
+    const { source, event } = JSON.parse(data);
+    if (source === 'card') {
+      const fn = handlers[event.tool];
+      if (fn) fn(event.data);
+      return;
+    }
+    // source === 'agent'
+    if (event.type === 'input' && event.kind === 'user') {
+      ensureTurn(event.id);
+      rowBubble(event.id, 'you').textContent = event.text;
+      scrollDown();
+    }
+    if (event.type === 'message.delta') {
+      rowBubble(event.id, 'agent').textContent += event.text;
+      scrollDown();
+    }
+    if (event.type === 'message.end') {
+      rowBubble(event.id, 'agent').textContent = event.text;
+      const markers = event.markers || [];
+      if (markers.includes('cheer')) avatar.textContent = '🥳';
+      else if (markers.includes('happy')) avatar.textContent = '😄';
+      else if (markers.includes('think')) avatar.textContent = '🤔';
+      else avatar.textContent = '🙂';
+      refreshMemoryPanel();
+      scrollDown();
+    }
+    if (event.type === 'marker' && event.name === 'think') {
+      avatar.textContent = '🤔';
+    }
+  };
+
+  async function sendText(text) {
+    await fetch('/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+  }
+
+  document.getElementById('composer').onsubmit = async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('text');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    await sendText(text);
+  };
+
+  document.getElementById('btn-new-chat').onclick = async () => {
+    await fetch('/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'conversation' }) });
+    log.innerHTML = '';
+    bubbles.clear();
+    currentTurnInputId = null;
+    turnOriginalCards = new Map();
+    avatar.textContent = '🙂';
+    systemNote('새 대화를 시작했어요. (기억은 유지돼요)');
+  };
+
+  document.getElementById('btn-reset-memory').onclick = async () => {
+    if (!confirm('대화와 기억(찜/보유/방문 포함)을 전부 초기화할까요? 시연을 처음부터 다시 할 때 쓰세요.')) return;
+    await fetch('/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'all' }) });
+    log.innerHTML = '';
+    bubbles.clear();
+    currentTurnInputId = null;
+    turnOriginalCards = new Map();
+    avatar.textContent = '🙂';
+    systemNote('기억을 전부 초기화했어요.');
+    refreshMemoryPanel();
+  };
+
+  async function refreshMemoryPanel() {
+    const res = await fetch('/state');
+    const data = await res.json();
+    const memoryList = document.getElementById('memory-list');
+    memoryList.innerHTML = '';
+    if (!data.memory || data.memory.length === 0) {
+      memoryList.innerHTML = '<div class="empty">아직 기억한 게 없어요.</div>';
+    } else {
+      const ul = document.createElement('ul');
+      for (const m of data.memory) {
+        const li = document.createElement('li');
+        li.textContent = m.text;
+        ul.append(li);
+      }
+      memoryList.append(ul);
+    }
+
+    const fillList = (elId, arr, render) => {
+      const el = document.getElementById(elId);
+      el.innerHTML = '';
+      if (!arr || arr.length === 0) {
+        el.innerHTML = '<div class="empty">아직 없어요.</div>';
+        return;
+      }
+      const ul = document.createElement('ul');
+      for (const x of arr) {
+        const li = document.createElement('li');
+        li.textContent = render(x);
+        ul.append(li);
+      }
+      el.append(ul);
+    };
+    fillList('wishlist-list', data.wishlist, (i) => `${i.brand} ${i.name} (${won(i.price)})`);
+    fillList('owned-list', data.owned, (i) => `${i.brand} ${i.name}`);
+    fillList('visited-list', data.visitedPlaces, (p) => p.name);
+  }
+
+  refreshMemoryPanel();
+</script>
+</html>

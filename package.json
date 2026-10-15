@@ -1,0 +1,21 @@
+{
+  "name": "dukme",
+  "private": true,
+  "version": "0.1.0",
+  "description": "덕메 - 내 덕질을 기억하는 AI 비서 (SNU x Croche AI Hackathon 2026)",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file=.env --import tsx src/server.ts",
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@h1r-ai/croche": "0.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
