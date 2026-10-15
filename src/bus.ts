@@ -3,7 +3,7 @@
 // publish their own structured result here, and the server forwards it to the page verbatim.
 // This keeps card rendering tied to the actual data the tool returned, not a re-parse of text.
 export interface CardEvent {
-  tool: "searchItem" | "findAlternative" | "addWishlist" | "planRoute";
+  tool: "searchItem" | "findAlternative" | "addWishlist" | "planRoute" | "updateOwned" | "markVisited";
   data: unknown;
 }
 
