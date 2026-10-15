@@ -1,6 +1,7 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadItems, loadAliases, type Item, type Aliases } from "../data.js";
 import { emitCard } from "../bus.js";
+import { norm, fieldMatches } from "../aliasMatch.js";
 
 export const searchItemDeclaration: ToolDeclaration = {
   name: "searchItem",
@@ -37,19 +38,6 @@ export const searchItemDeclaration: ToolDeclaration = {
     },
   ],
 };
-
-function norm(value: string | undefined | null): string {
-  return (value ?? "").toString().trim().toLowerCase();
-}
-
-// data/aliases.json 에 있는 별명(릭구, 위시, 로마자 등)도 한글 정식 이름과 똑같이 매칭되게 한다.
-function fieldMatches(canonicalValue: string, filter: string, aliasMap: Record<string, string[]>): boolean {
-  if (!filter) return true;
-  const canonLower = norm(canonicalValue);
-  if (canonLower.includes(filter)) return true;
-  const aliases = (aliasMap[canonicalValue] ?? []).map(norm);
-  return aliases.some((alias) => alias === filter || alias.includes(filter) || filter.includes(alias));
-}
 
 function matches(item: Item, text: string, aliases: Aliases): boolean {
   if (!text) return true;

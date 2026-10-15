@@ -77,12 +77,22 @@
   }
   .badge.original { background: var(--badge-original); }
   .badge.alt { background: var(--badge-alt); }
-  .wish-btn {
+  .item-actions { display: flex; flex-direction: column; gap: .35rem; flex-shrink: 0; }
+  .wish-btn, .buy-btn {
     border: 1px solid var(--accent); color: var(--accent-dark); background: #fff; border-radius: 8px;
-    padding: .3rem .6rem; font-size: .8rem; cursor: pointer; flex-shrink: 0;
+    padding: .3rem .6rem; font-size: .8rem; cursor: pointer; flex-shrink: 0; white-space: nowrap;
   }
-  .wish-btn:hover { background: var(--panel-bg); }
+  .wish-btn:hover, .buy-btn:hover { background: var(--panel-bg); }
   .wish-btn:disabled { opacity: .5; cursor: default; }
+  .buy-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .buy-btn:hover { background: var(--accent-dark); }
+
+  #purchase-counter {
+    position: fixed; right: 1rem; bottom: 1rem; background: var(--accent-dark); color: #fff;
+    padding: .45rem .8rem; border-radius: 999px; font-size: .78rem; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    z-index: 10; opacity: 0; transition: opacity .2s;
+  }
+  #purchase-counter.show { opacity: 1; }
 
   .timeline { border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; background: #fff; }
   .timeline h4 { margin: 0 0 .4rem; font-size: .9rem; color: var(--accent-dark); }
@@ -151,6 +161,8 @@
     </div>
   </aside>
 </main>
+
+<div id="purchase-counter">구매 연결 0건</div>
 
 <script>
   const log = document.getElementById('log');
@@ -233,12 +245,37 @@
       price.textContent += ` (원래 제품보다 ${won(item.savingsVsOriginal)} 저렴)`;
     }
     info.append(title, meta, price);
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
     const wishBtn = document.createElement('button');
     wishBtn.className = 'wish-btn';
     wishBtn.textContent = '찜하기';
     wishBtn.onclick = () => sendText(`${item.name} (${item.id}) 찜해줘`);
-    card.append(thumb, info, wishBtn);
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'buy-btn';
+    buyBtn.textContent = '사러 가기';
+    buyBtn.onclick = () => recordPurchaseClick(item.url);
+    actions.append(wishBtn, buyBtn);
+    card.append(thumb, info, actions);
     return card;
+  }
+
+  // "사러 가기": 실제 결제 연동은 범위 밖(PRD §12)이라 상품 url을 새 탭으로 열고, 구석 카운터만 올린다.
+  async function recordPurchaseClick(url) {
+    if (url) window.open(url, '_blank', 'noopener');
+    try {
+      const res = await fetch('/purchase-click', { method: 'POST' });
+      const data = await res.json();
+      showPurchaseCounter(data.purchaseClicks);
+    } catch {
+      // 카운터 갱신이 실패해도 상품 페이지는 이미 열렸으니 조용히 넘어간다.
+    }
+  }
+
+  const purchaseCounterEl = document.getElementById('purchase-counter');
+  function showPurchaseCounter(n) {
+    purchaseCounterEl.textContent = `구매 연결 ${n}건`;
+    purchaseCounterEl.classList.add('show');
   }
 
   function cardsBlock() {
@@ -310,7 +347,10 @@
         body.className = 'body';
         const name = document.createElement('div');
         name.className = 'name';
-        name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}` + (stop.isBrandMatch ? ' · 착용 브랜드 매장' : '');
+        const tag = stop.isFavoriteMemberVisit ? ' · 최애가 다녀간 곳'
+          : stop.isFavoriteGroupVisit ? ' · 같은 그룹이 다녀간 곳'
+          : stop.isBrandMatch ? ' · 착용 브랜드 매장' : '';
+        name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}${tag}`;
         const meta = document.createElement('div');
         meta.className = 'meta';
         const visitNote = (stop.visits || []).map(v => `${v.member}(${v.date})`).join(', ');
@@ -425,6 +465,7 @@
     turnOriginalCards = new Map();
     rawText.clear();
     avatar.textContent = '🙂';
+    purchaseCounterEl.classList.remove('show');
     systemNote('기억을 전부 초기화했어요.');
     refreshMemoryPanel();
   };
@@ -455,6 +496,7 @@
   async function refreshMemoryPanel() {
     const res = await fetch('/state');
     const data = await res.json();
+    if (data.purchaseClicks > 0) showPurchaseCounter(data.purchaseClicks);
     const memoryList = document.getElementById('memory-list');
     memoryList.innerHTML = '';
     if (!data.memory || data.memory.length === 0) {

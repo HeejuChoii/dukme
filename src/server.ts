@@ -58,7 +58,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - searchItem: 멤버·상황(공항/무대/브이로그/팬사인회/화보/일상)·카테고리·특징 묘사로 "원래 제품(검수된 정품)"을 찾을 때. 기본적으로 대체템은 안 섞여 나온다.
 - findAlternative: searchItem으로 찾은 원래 제품의 id로, 그 가격이 비싸거나 사용자가 예산을 말했을 때 대체템을 그 예산 안에서 찾을 때. 사용자가 "대체템", "싼 거", "비슷한 거 싸게" 같은 말을 하거나 예산을 언급하면, searchItem 다음에 반드시 이 도구도 호출해서 따로 보여준다 (searchItem 결과만으로 대체템을 지어내지 않는다).
 - addWishlist: 사용자가 특정 아이템을 "찜", "할래", "A로 할래" 등 명확히 고를 때만 호출.
-- planRoute: 사용자가 날짜·지역을 주고 성지 코스/동선을 짜달라고 할 때. 이미 다녀온 곳은 자동으로 빠지고, 사용자가 찜한 아이템의 브랜드 매장이 있으면 코스에 포함돼. 같은 턴에 addWishlist도 같이 호출했다면, 방금 찜한 그 itemId를 planRoute의 itemIds에도 꼭 같이 넘겨줘 (저장 순서에 상관없이 브랜드 매장이 코스에 바로 반영되게).
+- planRoute: 사용자가 날짜·지역을 주고 성지 코스/동선을 짜달라고 할 때. 이미 다녀온 곳은 자동으로 빠지고, 사용자가 찜한 아이템의 브랜드 매장이 있으면 코스에 포함돼. 같은 턴에 addWishlist도 같이 호출했다면, 방금 찜한 그 itemId를 planRoute의 itemIds에도 꼭 같이 넘겨줘 (저장 순서에 상관없이 브랜드 매장이 코스에 바로 반영되게). 사용자의 최애 멤버를 기억하고 있다면(기억 패널/메모리에 있는 그 멤버) planRoute의 member 플래그에 꼭 같이 넘겨줘 — 최애가 실제로 다녀간 성지를 코스에서 가장 먼저 넣기 위함이다.
 - updateOwned: 사용자가 "샀어", "샀다", "구매했어" 처럼 실제로 구매했다고 명확히 말했을 때만 호출. 찜(위시리스트)에 있던 거면 보유로 넘어가고 위시리스트에서는 빠진다.
 - markVisited: 사용자가 "다녀왔어", "갔다 왔어" 처럼 실제로 다녀왔다고 말했을 때 호출. placeIds는 대화에서 이미 planRoute로 짜줬던 코스의 placeId들을 그대로 넘긴다 (사용자가 장소 id를 직접 말하지 않아도, 방금 짜준 코스를 기억해서 넘긴다).
 - 이 여섯 가지 도구가 지금 가진 전부야. 여기 없는 기능을 요청하면 지어내지 말고 솔직하게 아직 안 된다고 답해.
@@ -183,6 +183,16 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
       return;
     }
+    if (req.method === "POST" && req.url === "/purchase-click") {
+      // 아이템 카드의 "사러 가기" 클릭 — 실제 구매 연동은 범위 밖(PRD §12)이라 외부 url로만 보내고,
+      // 화면 구석 카운터용으로 클릭 수만 센다. 서버에 저장해서 새로고침해도 유지된다.
+      const { purchaseClicks } = await updateState(DEMO_USER, (state) => {
+        state.purchaseClicks += 1;
+        return { purchaseClicks: state.purchaseClicks };
+      });
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ purchaseClicks }));
+      return;
+    }
     if (req.method === "GET" && req.url === "/state") {
       // "덕메가 기억하는 것" 패널: 자유 텍스트 기억(최애·예산·사이즈 등)은 Croche가 대화에서 알아서 적어두고,
       // 찜/보유/방문 목록은 앱이 도구 호출 때마다 authoritative하게 들고 있는다 (PRD §7).
@@ -193,7 +203,7 @@ const server = createServer(async (req, res) => {
       const visitedPlaces = appState.visitedPlaces.map((id) => places.find((p) => p.id === id)).filter(Boolean);
       res
         .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ memory, wishlist, owned, visitedPlaces }));
+        .end(JSON.stringify({ memory, wishlist, owned, visitedPlaces, purchaseClicks: appState.purchaseClicks }));
       return;
     }
     res.writeHead(404).end();

@@ -1,7 +1,8 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
-import { loadItems, loadPlaces, type Place } from "../data.js";
+import { loadItems, loadPlaces, loadAliases, type Place } from "../data.js";
 import { readState } from "../state.js";
 import { emitCard } from "../bus.js";
+import { norm, fieldMatches } from "../aliasMatch.js";
 
 export const planRouteDeclaration: ToolDeclaration = {
   name: "planRoute",
@@ -24,6 +25,17 @@ export const planRouteDeclaration: ToolDeclaration = {
           list: true,
           description:
             "같은 턴에 사용자가 방금 찜/구매한 아이템의 id가 있으면 같이 넘긴다. 저장 타이밍에 의존하지 않고 그 브랜드 매장을 코스에 바로 반영하기 위함.",
+        },
+        {
+          name: "member",
+          type: "string",
+          description:
+            "사용자의 최애 멤버 (기억하고 있다면 넘긴다). 그 멤버가 실제로 다녀간 성지를 코스에서 가장 먼저 넣는다.",
+        },
+        {
+          name: "group",
+          type: "string",
+          description: "사용자의 최애 그룹 (member만 알아도 됨, 그룹은 자동으로 알아낸다). 같은 그룹 멤버가 다녀간 곳을 그 다음 우선순위로 넣는다.",
         },
       ],
     },
@@ -60,7 +72,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const startMinutes = parseStartMinutes(args.startTime);
 
   const user = context.user ?? "demo-user";
-  const [places, items, state] = await Promise.all([loadPlaces(), loadItems(), readState(user)]);
+  const [places, items, state, aliases] = await Promise.all([loadPlaces(), loadItems(), readState(user), loadAliases()]);
 
   const areaPlaces = places.filter((place) => place.area.includes(area) || area.includes(place.area));
   if (areaPlaces.length === 0) {
@@ -82,9 +94,23 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const isBrandMatch = (place: Place): boolean =>
     place.type === "매장" && Array.from(interestingBrands).some((brand) => place.name.includes(brand) || place.note.includes(brand));
 
+  // 우선순위: ① 최애 멤버가 실제로 다녀간 곳 ② 같은 그룹 멤버가 다녀간 곳 ③ 착용 브랜드 매장 ④ 그 외(자리가 남을 때만).
+  const favoriteMember = norm(args.member as string | undefined);
+  const favoriteGroupArg = norm(args.group as string | undefined);
+  const favoriteGroup =
+    favoriteGroupArg ||
+    (favoriteMember ? norm(items.find((item) => fieldMatches(item.member, favoriteMember, aliases.members))?.group) : "");
+
+  const visitScore = (place: Place): number => {
+    if (favoriteMember && place.visits.some((v) => fieldMatches(v.member, favoriteMember, aliases.members))) return 3;
+    if (favoriteGroup && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups))) return 2;
+    if (isBrandMatch(place)) return 1;
+    return 0;
+  };
+
   const ranked = [...unvisited].sort((a, b) => {
-    const brandDiff = Number(isBrandMatch(b)) - Number(isBrandMatch(a));
-    if (brandDiff !== 0) return brandDiff;
+    const scoreDiff = visitScore(b) - visitScore(a);
+    if (scoreDiff !== 0) return scoreDiff;
     return TYPE_PRIORITY.indexOf(a.type) - TYPE_PRIORITY.indexOf(b.type);
   });
 
@@ -100,6 +126,8 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     note: place.note,
     visits: place.visits,
     isBrandMatch: isBrandMatch(place),
+    isFavoriteMemberVisit: favoriteMember ? place.visits.some((v) => fieldMatches(v.member, favoriteMember, aliases.members)) : false,
+    isFavoriteGroupVisit: favoriteGroup ? place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups)) : false,
   }));
 
   const excludedVisited = areaPlaces.length - unvisited.length;

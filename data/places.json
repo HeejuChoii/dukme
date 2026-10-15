@@ -136,5 +136,29 @@
     ],
     "openHours": "11:00-21:00",
     "note": "대표 메뉴는 숙성 육회비빔밥"
+  },
+  {
+    "id": "place_013",
+    "name": "홍대 레코드 숍 바이널",
+    "area": "홍대",
+    "address": "서울 마포구 와우산로 23길 5",
+    "type": "매장",
+    "visits": [
+      { "group": "NCT WISH", "member": "리쿠", "date": "2026-09-20", "context": "일상" }
+    ],
+    "openHours": "13:00-21:00",
+    "note": "LP와 밴드 굿즈를 같이 파는 레코드숍"
+  },
+  {
+    "id": "place_014",
+    "name": "홍대 브런치 라이스테이블",
+    "area": "홍대",
+    "address": "서울 마포구 와우산로 15길 9",
+    "type": "식당",
+    "visits": [
+      { "group": "NCT WISH", "member": "리쿠", "date": "2026-07-02", "context": "브이로그" }
+    ],
+    "openHours": "10:00-20:00",
+    "note": "대표 메뉴는 리코타 샐러드 라이스볼"
   }
 ]
