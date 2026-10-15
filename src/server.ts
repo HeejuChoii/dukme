@@ -11,7 +11,7 @@ import { Croche, type AgentEvent } from "@h1r-ai/croche";
 import { FileStorage } from "@h1r-ai/croche/node";
 import { toolDeclarations, toolHandlers } from "./tools/index.js";
 import { onCard } from "./bus.js";
-import { resetState, readState } from "./state.js";
+import { resetState, readState, updateState } from "./state.js";
 import { loadItems, loadPlaces } from "./data.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -152,6 +152,35 @@ const server = createServer(async (req, res) => {
         await resetState(DEMO_USER);
       }
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, scope }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/memory/delete") {
+      // 기억 패널에서 사용자가 직접 지우는 AI 기억 한 줄 (PRD §7: 패널에서 직접 수정·삭제 가능).
+      // Croche 메모리 API는 삭제만 지원한다 — "수정"은 지우고 대화에서 다시 말해주는 방식으로 이어진다.
+      const body = await readBody(req);
+      const id = String(JSON.parse(body || "{}").id ?? "").trim();
+      if (!id) {
+        res.writeHead(400).end();
+        return;
+      }
+      const outcome = await agent.memory.delete(id);
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, outcome }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/list/remove") {
+      // 위시리스트/보유/방문 목록에서 한 항목을 사용자가 직접 지운다.
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { list?: string; id?: string };
+      const list = payload.list;
+      const id = String(payload.id ?? "").trim();
+      if (!id || (list !== "wishlist" && list !== "owned" && list !== "visitedPlaces")) {
+        res.writeHead(400).end();
+        return;
+      }
+      await updateState(DEMO_USER, (state) => {
+        state[list] = state[list].filter((x) => x !== id);
+      });
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
       return;
     }
     if (req.method === "GET" && req.url === "/state") {

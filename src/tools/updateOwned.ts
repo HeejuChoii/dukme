@@ -1,6 +1,6 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findItemById } from "../data.js";
-import { readState, writeState } from "../state.js";
+import { updateState } from "../state.js";
 import { emitCard } from "../bus.js";
 
 export const updateOwnedDeclaration: ToolDeclaration = {
@@ -30,19 +30,20 @@ export const updateOwnedHandler: ToolHandler = async (invocation, context) => {
   }
 
   const user = context.user ?? "demo-user";
-  const state = await readState(user);
-  const alreadyOwned = state.owned.includes(itemId);
-  const wasInWishlist = state.wishlist.includes(itemId);
-  if (!alreadyOwned) state.owned.push(itemId);
-  if (wasInWishlist) state.wishlist = state.wishlist.filter((id) => id !== itemId);
-  if (!alreadyOwned || wasInWishlist) await writeState(user, state);
+  const { alreadyOwned, wasInWishlist, ownedCount } = await updateState(user, (state) => {
+    const alreadyOwned = state.owned.includes(itemId);
+    const wasInWishlist = state.wishlist.includes(itemId);
+    if (!alreadyOwned) state.owned.push(itemId);
+    if (wasInWishlist) state.wishlist = state.wishlist.filter((id) => id !== itemId);
+    return { alreadyOwned, wasInWishlist, ownedCount: state.owned.length };
+  });
 
   const result = {
     updated: !alreadyOwned,
     alreadyOwned,
     movedFromWishlist: wasInWishlist,
     item,
-    ownedCount: state.owned.length,
+    ownedCount,
   };
   emitCard({ tool: "updateOwned", data: result });
   return result as unknown as JsonValue;

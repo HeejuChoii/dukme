@@ -1,6 +1,6 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findPlaceById } from "../data.js";
-import { readState, writeState } from "../state.js";
+import { updateState } from "../state.js";
 import { emitCard } from "../bus.js";
 
 export const markVisitedDeclaration: ToolDeclaration = {
@@ -32,16 +32,17 @@ export const markVisitedHandler: ToolHandler = async (invocation, context) => {
   const invalidIds = requested.filter((id, i) => !resolved[i]);
 
   const user = context.user ?? "demo-user";
-  const state = await readState(user);
-  const newlyVisited = valid.filter((p) => !state.visitedPlaces.includes(p.id));
-  for (const place of newlyVisited) state.visitedPlaces.push(place.id);
-  if (newlyVisited.length > 0) await writeState(user, state);
+  const { newlyVisited, visitedCount } = await updateState(user, (state) => {
+    const newlyVisited = valid.filter((p) => !state.visitedPlaces.includes(p.id));
+    for (const place of newlyVisited) state.visitedPlaces.push(place.id);
+    return { newlyVisited, visitedCount: state.visitedPlaces.length };
+  });
 
   const result = {
     marked: newlyVisited.map((p) => ({ id: p.id, name: p.name })),
     alreadyVisited: valid.filter((p) => !newlyVisited.includes(p)).map((p) => ({ id: p.id, name: p.name })),
     invalidIds,
-    visitedCount: state.visitedPlaces.length,
+    visitedCount,
   };
   emitCard({ tool: "markVisited", data: result });
   return result as unknown as JsonValue;

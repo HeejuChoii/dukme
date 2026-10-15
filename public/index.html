@@ -105,8 +105,14 @@
 
   #memory-col h3 { font-size: .85rem; margin: 0 0 .4rem; color: var(--accent-dark); }
   #memory-col .section { margin-bottom: 1rem; }
-  #memory-col ul { margin: 0; padding-left: 1.1rem; font-size: .82rem; }
-  #memory-col li { margin-bottom: .25rem; }
+  #memory-col ul { margin: 0; padding: 0; list-style: none; font-size: .82rem; }
+  #memory-col li.mem-row { display: flex; align-items: flex-start; gap: .35rem; margin-bottom: .3rem; }
+  #memory-col li.mem-row .mem-text { flex: 1; min-width: 0; }
+  #memory-col .mem-del {
+    flex-shrink: 0; border: none; background: none; color: var(--muted); cursor: pointer;
+    font-size: .85rem; line-height: 1; padding: 0 .2rem;
+  }
+  #memory-col .mem-del:hover { color: #c0392b; }
   #memory-col .empty { font-size: .78rem; color: var(--muted); }
 </style>
 
@@ -421,6 +427,29 @@
     refreshMemoryPanel();
   };
 
+  // 기억 패널의 한 줄: 텍스트 + "삭제" 버튼. 사용자가 직접 지울 수 있게 한다 (PRD §7).
+  function memRow(text, onDelete) {
+    const li = document.createElement('li');
+    li.className = 'mem-row';
+    const span = document.createElement('span');
+    span.className = 'mem-text';
+    span.textContent = text;
+    const del = document.createElement('button');
+    del.className = 'mem-del';
+    del.title = '삭제';
+    del.textContent = '✕';
+    del.onclick = async () => { await onDelete(); await refreshMemoryPanel(); };
+    li.append(span, del);
+    return li;
+  }
+
+  async function deleteMemory(id) {
+    await fetch('/memory/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+  }
+  async function removeFromList(list, id) {
+    await fetch('/list/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ list, id }) });
+  }
+
   async function refreshMemoryPanel() {
     const res = await fetch('/state');
     const data = await res.json();
@@ -430,15 +459,11 @@
       memoryList.innerHTML = '<div class="empty">아직 기억한 게 없어요.</div>';
     } else {
       const ul = document.createElement('ul');
-      for (const m of data.memory) {
-        const li = document.createElement('li');
-        li.textContent = m.text;
-        ul.append(li);
-      }
+      for (const m of data.memory) ul.append(memRow(m.text, () => deleteMemory(m.id)));
       memoryList.append(ul);
     }
 
-    const fillList = (elId, arr, render) => {
+    const fillList = (elId, listName, arr, render) => {
       const el = document.getElementById(elId);
       el.innerHTML = '';
       if (!arr || arr.length === 0) {
@@ -446,16 +471,12 @@
         return;
       }
       const ul = document.createElement('ul');
-      for (const x of arr) {
-        const li = document.createElement('li');
-        li.textContent = render(x);
-        ul.append(li);
-      }
+      for (const x of arr) ul.append(memRow(render(x), () => removeFromList(listName, x.id)));
       el.append(ul);
     };
-    fillList('wishlist-list', data.wishlist, (i) => `${i.brand} ${i.name} (${won(i.price)})`);
-    fillList('owned-list', data.owned, (i) => `${i.brand} ${i.name}`);
-    fillList('visited-list', data.visitedPlaces, (p) => p.name);
+    fillList('wishlist-list', 'wishlist', data.wishlist, (i) => `${i.brand} ${i.name} (${won(i.price)})`);
+    fillList('owned-list', 'owned', data.owned, (i) => `${i.brand} ${i.name}`);
+    fillList('visited-list', 'visitedPlaces', data.visitedPlaces, (p) => p.name);
   }
 
   refreshMemoryPanel();

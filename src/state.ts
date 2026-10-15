@@ -3,9 +3,10 @@
 // from the conversation itself; this file is for the deterministic lists the tools mutate,
 // per the Croche guidance to "keep authoritative inventory in the app". Plain JSON on disk,
 // so it survives a server restart exactly like FileStorage does for the conversation.
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stateDir = path.join(here, "..", "app-state");
@@ -14,10 +15,11 @@ export interface AppState {
   wishlist: string[]; // item ids
   owned: string[]; // item ids
   visitedPlaces: string[]; // place ids
+  purchaseClicks: number; // "사러 가기" 클릭 수 (데모용 카운터)
 }
 
 function emptyState(): AppState {
-  return { wishlist: [], owned: [], visitedPlaces: [] };
+  return { wishlist: [], owned: [], visitedPlaces: [], purchaseClicks: 0 };
 }
 
 function stateFile(user: string): string {
@@ -32,6 +34,7 @@ export async function readState(user: string): Promise<AppState> {
       wishlist: parsed.wishlist ?? [],
       owned: parsed.owned ?? [],
       visitedPlaces: parsed.visitedPlaces ?? [],
+      purchaseClicks: parsed.purchaseClicks ?? 0,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyState();
@@ -39,11 +42,38 @@ export async function readState(user: string): Promise<AppState> {
   }
 }
 
-export async function writeState(user: string, state: AppState): Promise<void> {
+async function writeStateRaw(user: string, state: AppState): Promise<void> {
   await mkdir(stateDir, { recursive: true });
-  await writeFile(stateFile(user), JSON.stringify(state, null, 2), "utf-8");
+  const target = stateFile(user);
+  // 임시 파일에 쓰고 rename — 동시 쓰기가 섞여서 JSON이 깨지는 걸 막는다 (rename은 원자적).
+  const tmp = `${target}.${randomUUID()}.tmp`;
+  await writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");
+  await rename(tmp, target);
+}
+
+export async function writeState(user: string, state: AppState): Promise<void> {
+  await writeStateRaw(user, state);
 }
 
 export async function resetState(user: string): Promise<void> {
-  await writeState(user, emptyState());
+  await writeStateRaw(user, emptyState());
+}
+
+// 같은 유저에 대해 updateOwned/markVisited/addWishlist가 한 턴에 같이 호출되는 경우가 있어서,
+// 읽고-고치고-쓰는 전체 과정을 유저별로 한 번에 하나씩만 돌게 직렬화한다 (lost-update 방지).
+const locks = new Map<string, Promise<unknown>>();
+
+export async function updateState<T>(user: string, mutate: (state: AppState) => T | Promise<T>): Promise<T> {
+  const previous = locks.get(user) ?? Promise.resolve();
+  let result!: T;
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      const state = await readState(user);
+      result = await mutate(state);
+      await writeStateRaw(user, state);
+    });
+  locks.set(user, next);
+  await next;
+  return result;
 }

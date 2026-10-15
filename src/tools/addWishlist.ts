@@ -1,6 +1,6 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findItemById } from "../data.js";
-import { readState, writeState } from "../state.js";
+import { updateState } from "../state.js";
 import { emitCard } from "../bus.js";
 
 export const addWishlistDeclaration: ToolDeclaration = {
@@ -30,14 +30,13 @@ export const addWishlistHandler: ToolHandler = async (invocation, context) => {
   }
 
   const user = context.user ?? "demo-user";
-  const state = await readState(user);
-  const already = state.wishlist.includes(itemId);
-  if (!already) {
-    state.wishlist.push(itemId);
-    await writeState(user, state);
-  }
+  const { already, wishlistCount } = await updateState(user, (state) => {
+    const already = state.wishlist.includes(itemId);
+    if (!already) state.wishlist.push(itemId);
+    return { already, wishlistCount: state.wishlist.length };
+  });
 
-  const result = { added: !already, alreadyInWishlist: already, item, wishlistCount: state.wishlist.length };
+  const result = { added: !already, alreadyInWishlist: already, item, wishlistCount };
   emitCard({ tool: "addWishlist", data: result });
   return result as unknown as JsonValue;
 };
