@@ -385,7 +385,9 @@
       refreshMemoryPanel();
       scrollDown();
     }
-    if (event.type === 'marker' && event.name === 'think') {
+    // 도구가 실제로 실행되는 동안 (state.activity === 'tool') 바로 :think: 표정으로 바꾼다 —
+    // 메시지가 끝나야 마커가 오는 message.end보다 먼저, "찾는 중"이 실시간으로 보이게.
+    if (event.type === 'state' && event.activity === 'tool') {
       avatar.textContent = '🤔';
     }
   };
