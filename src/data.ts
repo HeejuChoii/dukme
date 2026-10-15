@@ -41,8 +41,14 @@ export interface Place {
   note: string;
 }
 
+export interface Aliases {
+  members: Record<string, string[]>;
+  groups: Record<string, string[]>;
+}
+
 let itemsCache: Item[] | null = null;
 let placesCache: Place[] | null = null;
+let aliasesCache: Aliases | null = null;
 
 export async function loadItems(): Promise<Item[]> {
   if (!itemsCache) {
@@ -58,6 +64,14 @@ export async function loadPlaces(): Promise<Place[]> {
     placesCache = JSON.parse(raw) as Place[];
   }
   return placesCache;
+}
+
+export async function loadAliases(): Promise<Aliases> {
+  if (!aliasesCache) {
+    const raw = await readFile(path.join(dataDir, "aliases.json"), "utf-8");
+    aliasesCache = JSON.parse(raw) as Aliases;
+  }
+  return aliasesCache;
 }
 
 export async function findItemById(id: string): Promise<Item | undefined> {

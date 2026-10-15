@@ -1,5 +1,5 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
-import { loadItems, type Item } from "../data.js";
+import { loadItems, loadAliases, type Item, type Aliases } from "../data.js";
 import { emitCard } from "../bus.js";
 
 export const searchItemDeclaration: ToolDeclaration = {
@@ -14,8 +14,8 @@ export const searchItemDeclaration: ToolDeclaration = {
       summary:
         "member·group·situation·category·keywords 중 아는 조건만 넣어서 '원래 제품'을 찾는다 (대체템은 기본적으로 빠짐 — includeAlternatives:true를 주지 않으면 원래 제품만 나온다). 결과가 없으면 빈 배열을 반환하니, 그대로 '아직 확인되지 않은 정보'라고 답한다.",
       flags: [
-        { name: "group", type: "string", description: "그룹명 (예: NCT WISH, Stray Kids)" },
-        { name: "member", type: "string", description: "멤버명, 한글 또는 로마자 모두 가능 (예: 리쿠, riku)" },
+        { name: "group", type: "string", description: "그룹명. 한글 정식 이름/별명/로마자 모두 가능 (예: NCT WISH, 위시, Stray Kids, 스키즈)" },
+        { name: "member", type: "string", description: "멤버명. 한글 정식 이름/별명/로마자 모두 가능 (예: 리쿠, 릭구, riku)" },
         {
           name: "situation",
           type: "string",
@@ -42,33 +42,21 @@ function norm(value: string | undefined | null): string {
   return (value ?? "").toString().trim().toLowerCase();
 }
 
-// Members are sometimes named by their romanized stage name (the model may write "riku" for
-// "리쿠"). Korean substring matching alone misses that, so alias it explicitly.
-const MEMBER_ALIASES: Record<string, string[]> = {
-  리쿠: ["riku"],
-  유우: ["yu", "yuu"],
-  사쿠야: ["sakuya"],
-  켄: ["ken"],
-  시온: ["sion", "shion"],
-  신유: ["shinyu", "sinyu"],
-  소운: ["soul", "soun"],
-  현진: ["hyunjin"],
-  필릭스: ["felix"],
-  방찬: ["bangchan", "chan"],
-  한: ["han"],
-  아이엔: ["i.n", "in", "ien"],
-};
-
-function memberMatches(itemMember: string, filter: string): boolean {
+// data/aliases.json 에 있는 별명(릭구, 위시, 로마자 등)도 한글 정식 이름과 똑같이 매칭되게 한다.
+function fieldMatches(canonicalValue: string, filter: string, aliasMap: Record<string, string[]>): boolean {
   if (!filter) return true;
-  if (norm(itemMember).includes(filter)) return true;
-  const aliases = MEMBER_ALIASES[itemMember] ?? [];
+  const canonLower = norm(canonicalValue);
+  if (canonLower.includes(filter)) return true;
+  const aliases = (aliasMap[canonicalValue] ?? []).map(norm);
   return aliases.some((alias) => alias === filter || alias.includes(filter) || filter.includes(alias));
 }
 
-function matches(item: Item, text: string): boolean {
+function matches(item: Item, text: string, aliases: Aliases): boolean {
   if (!text) return true;
-  const haystack = `${item.group} ${item.member} ${item.situation} ${item.category} ${item.brand} ${item.name} ${item.features}`.toLowerCase();
+  const memberAliases = (aliases.members[item.member] ?? []).join(" ");
+  const groupAliases = (aliases.groups[item.group] ?? []).join(" ");
+  const haystack =
+    `${item.group} ${item.member} ${item.situation} ${item.category} ${item.brand} ${item.name} ${item.features} ${groupAliases} ${memberAliases}`.toLowerCase();
   return text
     .split(/\s+/)
     .filter(Boolean)
@@ -88,14 +76,14 @@ export const searchItemHandler: ToolHandler = async (invocation) => {
   const includeAlternatives = args.includeAlternatives === true;
   const limit = typeof args.limit === "number" ? Math.min(20, Math.max(1, args.limit)) : 10;
 
-  const items = await loadItems();
+  const [items, aliases] = await Promise.all([loadItems(), loadAliases()]);
   const results = items
     .filter((item) => includeAlternatives || item.isOriginal)
-    .filter((item) => !group || norm(item.group).includes(group))
-    .filter((item) => memberMatches(item.member, member))
+    .filter((item) => fieldMatches(item.group, group, aliases.groups))
+    .filter((item) => fieldMatches(item.member, member, aliases.members))
     .filter((item) => !situation || norm(item.situation).includes(situation))
     .filter((item) => !category || norm(item.category).includes(category))
-    .filter((item) => matches(item, keywords))
+    .filter((item) => matches(item, keywords, aliases))
     .sort((a, b) => {
       if (a.isOriginal !== b.isOriginal) return a.isOriginal ? -1 : 1;
       return b.date.localeCompare(a.date);
