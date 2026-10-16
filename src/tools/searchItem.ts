@@ -74,7 +74,9 @@ export const searchItemHandler: ToolHandler = async (invocation) => {
 
   const [items, aliases] = await Promise.all([loadItems(), loadAliases()]);
   const results = items
-    .filter((item) => includeAlternatives || item.isOriginal)
+    // similar(유사 제품)는 alternativeOf로 묶인 "대체템"이 아니라 그 자체로 독립된 결과라서,
+    // isSample과 달리 기본 검색에도 나와야 한다.
+    .filter((item) => includeAlternatives || item.isOriginal || item.matchType === "similar")
     .filter((item) => fieldMatches(item.group, group, aliases.groups))
     .filter((item) => memberMatches(item, member, aliases))
     .filter((item) => !situation || norm(item.situation).includes(situation))

@@ -25,6 +25,7 @@ export interface Item {
   sourceUrl: string | null; // 최초 목격 출처 (유튜브 타임스탬프 등)
   features: string;
   accuracy: string | null; // "certain" 등 손민수위키 검수 상태
+  matchType: "exact" | "similar" | "sample"; // exact=원래 제품, similar=정품 미확인 유사 제품, sample=시연용 예시
   soldOut: boolean;
   isOriginal: boolean;
   alternativeOf: string | null;

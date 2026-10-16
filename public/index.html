@@ -152,6 +152,7 @@
   .badge.original { background: var(--badge-original); }
   .badge.alt { background: var(--badge-alt); }
   .badge.sample { background: #c08a2e; }
+  .badge.similar { background: #6e6ec0; }
   .item-actions { display: flex; flex-direction: column; gap: .35rem; flex-shrink: 0; }
   .wish-btn, .buy-btn {
     border: 1px solid var(--border-strong); color: var(--accent-dark); background: #fff; border-radius: var(--radius-control);
@@ -427,8 +428,8 @@
     title.className = 'title';
     title.textContent = `${item.brand} · ${item.name}`;
     const badge = document.createElement('span');
-    badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : 'alt');
-    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : '대체템';
+    badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : item.matchType === 'similar' ? 'similar' : 'alt');
+    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : item.matchType === 'similar' ? '유사 제품(팬 검수)' : '대체템';
     title.append(badge);
     const meta = document.createElement('div');
     meta.className = 'meta';
