@@ -25,9 +25,15 @@
     padding: .6rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap;
   }
   .avatar {
-    width: 64px; height: 64px; border-radius: 50%; background: var(--accent);
-    display: flex; align-items: center; justify-content: center; font-size: 2.1rem; flex-shrink: 0;
-    transition: transform .15s;
+    width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .avatar, .mini-avatar { transform-origin: center; }
+  .avatar.bounce, .mini-avatar.bounce { animation: dukme-bounce .4s ease; }
+  @keyframes dukme-bounce {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.18); }
+    65% { transform: scale(.92); }
+    100% { transform: scale(1); }
   }
   #avatar-status {
     font-size: .82rem; color: var(--accent-dark); font-weight: 600; min-width: 90px;
@@ -56,8 +62,7 @@
   .row.you { justify-content: flex-end; }
   .row.agent { align-items: flex-end; }
   .mini-avatar {
-    width: 24px; height: 24px; border-radius: 50%; background: var(--accent); flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: .85rem;
+    width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
   }
   .bubble {
     max-width: 80%; padding: .55rem .8rem; border-radius: 14px; white-space: pre-wrap; word-break: break-word;
@@ -206,13 +211,51 @@
   const bubbles = new Map(); // message id -> element
   const miniAvatars = new Map(); // message id -> mini-avatar element (말풍선 옆 작은 얼굴)
 
+  // 덕메 오리지널 마스코트: 실제 아이돌·기존 캐릭터·응원봉을 닮지 않은 단순한 동글이 얼굴.
+  // 머리 위 동그란 혹 2개 + 몸(원) + 얼굴판은 모든 표정이 공유하고, 눈/입만 바꿔서 표정을 표현한다.
+  const DUKME_FACE = {
+    idle: `<circle cx="40" cy="54" r="4" fill="#0b3b45"/><circle cx="60" cy="54" r="4" fill="#0b3b45"/>
+      <path d="M40 66 Q50 72 60 66" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    think: `<path d="M34 46 Q40 43 46 46" stroke="#0b3b45" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="40" cy="52" r="3.5" fill="#0b3b45"/><circle cx="60" cy="52" r="3.5" fill="#0b3b45"/>
+      <path d="M44 68 Q50 70 56 68" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    happy: `<path d="M34 52 Q40 46 46 52" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M54 52 Q60 46 66 52" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M38 64 Q50 78 62 64" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    cheer: `<path d="M40 48 L42 53 L47 55 L42 57 L40 62 L38 57 L33 55 L38 53 Z" fill="#0b3b45"/>
+      <path d="M60 48 L62 53 L67 55 L62 57 L60 62 L58 57 L53 55 L58 53 Z" fill="#0b3b45"/>
+      <ellipse cx="50" cy="67" rx="9" ry="7" fill="#0b3b45"/>
+      <circle cx="18" cy="28" r="2.5" fill="#ffd166"/><circle cx="83" cy="32" r="2.5" fill="#ff6b6b"/>
+      <circle cx="22" cy="86" r="2" fill="#06d6a0"/><circle cx="80" cy="88" r="2" fill="#ffd166"/>`,
+    sorry: `<path d="M35 50 L45 56 M45 50 L35 56" stroke="#0b3b45" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M55 50 L65 56 M65 50 L55 56" stroke="#0b3b45" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M42 69 Q50 65 58 69" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M72 40 Q76 46 72 51 Q68 46 72 40 Z" fill="#8fe0ef"/>`,
+  };
+  function dukmeAvatarSvg(name) {
+    const face = DUKME_FACE[name] || DUKME_FACE.idle;
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="33" cy="20" r="8" fill="#02a5c8"/><circle cx="67" cy="20" r="8" fill="#02a5c8"/>
+      <circle cx="50" cy="56" r="42" fill="#02a5c8"/>
+      <ellipse cx="50" cy="59" rx="30" ry="25" fill="#eafbfd"/>
+      ${face}
+    </svg>`;
+  }
+  function bounce(el) {
+    el.classList.remove('bounce');
+    // eslint-disable-next-line no-unused-expressions
+    el.offsetWidth; // 리플로우를 강제해서 같은 표정이 다시 와도 애니메이션이 재생되게 한다
+    el.classList.add('bounce');
+  }
+
   // 표정이 너무 빨리 바뀌어서 안 보이는 문제: 각 표정은 최소 시간 동안 유지되고, 그 안에 새 요청이
   // 오면 "다음에 보여줄 표정"만 기억해뒀다가 최소 시간이 끝나는 순간 가장 최신 요청을 적용한다.
   const EXPRESSIONS = {
-    idle: { emoji: '🙂', text: '', minMs: 0 },
-    think: { emoji: '🤔', text: '덕메가 찾는 중…', minMs: 1000 },
-    happy: { emoji: '😊', text: '찾았다!', minMs: 3000 },
-    cheer: { emoji: '🎉', text: '축하해!', minMs: 3000 },
+    idle: { text: '', minMs: 0 },
+    think: { text: '덕메가 찾는 중…', minMs: 1000 },
+    happy: { text: '찾았다!', minMs: 3000 },
+    cheer: { text: '축하해!', minMs: 3000 },
+    sorry: { text: '음… 잘 모르겠어', minMs: 3000 },
   };
   let expressionBusyUntil = 0;
   let latestExpressionRequest = 'idle';
@@ -222,7 +265,8 @@
   function applyExpression(name) {
     const info = EXPRESSIONS[name] || EXPRESSIONS.idle;
     currentExpression = name;
-    avatar.textContent = info.emoji;
+    avatar.innerHTML = dukmeAvatarSvg(name);
+    bounce(avatar);
     avatarStatusEl.textContent = info.text;
     expressionBusyUntil = Date.now() + info.minMs;
   }
@@ -274,7 +318,7 @@
       if (cls === 'agent') {
         const mini = document.createElement('div');
         mini.className = 'mini-avatar';
-        mini.textContent = EXPRESSIONS.think.emoji; // 아직 답이 끝나기 전엔 "생각 중" 표정으로 시작
+        mini.innerHTML = dukmeAvatarSvg('think'); // 아직 답이 끝나기 전엔 "생각 중" 표정으로 시작
         row.append(mini);
         miniAvatars.set(id, mini);
       }
@@ -596,13 +640,14 @@
       const markers = event.markers || [];
       const resolved = markers.includes('cheer') ? 'cheer'
         : markers.includes('happy') ? 'happy'
+        : markers.includes('sorry') ? 'sorry'
         : markers.includes('think') ? 'think'
         : 'idle';
       setExpression(resolved);
       // 말풍선 옆 작은 얼굴은 그 메시지가 끝난 순간의 표정을 그대로, 지연 없이 바로 보여준다
       // (상단 큰 아바타는 최소 노출 시간을 지키려고 늦게 바뀔 수 있지만, 이건 그 메시지 자체의 기록이라 바로 반영).
       const mini = miniAvatars.get(event.id);
-      if (mini) mini.textContent = EXPRESSIONS[resolved].emoji;
+      if (mini) { mini.innerHTML = dukmeAvatarSvg(resolved); bounce(mini); }
       refreshMemoryPanel();
       // Croche의 기억 저장은 답변이 끝난 뒤 따로 완료될 때가 있어서(테스트 결과 7초 대기 85% ->
       // 15초 대기 95%), 한 번 더 늦게 조회해서 뒤늦게 저장된 기억도 패널에 반영한다.
@@ -715,6 +760,7 @@
     fillList('visited-list', 'visitedPlaces', data.visitedPlaces, (p) => p.name);
   }
 
+  applyExpression('idle'); // 페이지 열리면 바로 SVG 마스코트로 (정적 HTML의 이모지 대체)
   refreshMemoryPanel();
 </script>
 </html>
