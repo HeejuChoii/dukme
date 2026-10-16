@@ -86,6 +86,7 @@
   }
   .badge.original { background: var(--badge-original); }
   .badge.alt { background: var(--badge-alt); }
+  .badge.sample { background: #c08a2e; }
   .item-actions { display: flex; flex-direction: column; gap: .35rem; flex-shrink: 0; }
   .wish-btn, .buy-btn {
     border: 1px solid var(--accent); color: var(--accent-dark); background: #fff; border-radius: 8px;
@@ -95,6 +96,11 @@
   .wish-btn:disabled { opacity: .5; cursor: default; }
   .buy-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
   .buy-btn:hover { background: var(--accent-dark); }
+  .link-btn {
+    border: none; background: none; color: var(--muted); font-size: .74rem; text-decoration: underline;
+    cursor: pointer; padding: .1rem 0; text-align: left;
+  }
+  .link-btn:hover { color: var(--accent-dark); }
 
   #purchase-counter {
     position: fixed; right: 1rem; bottom: 1rem; background: var(--accent-dark); color: #fff;
@@ -283,7 +289,7 @@
     scrollDown();
   }
 
-  function itemCard(item, groupLabel) {
+  function itemCard(item) {
     const card = document.createElement('div');
     card.className = 'item-card';
     const thumb = document.createElement('div');
@@ -295,30 +301,48 @@
     title.className = 'title';
     title.textContent = `${item.brand} · ${item.name}`;
     const badge = document.createElement('span');
-    badge.className = 'badge ' + (item.isOriginal ? 'original' : 'alt');
-    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : '대체템';
+    badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : 'alt');
+    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : '대체템';
     title.append(badge);
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = `${item.group} ${item.member} · ${item.situation}`;
     const price = document.createElement('div');
     price.className = 'price';
-    price.textContent = won(item.price);
+    // 일부 아이템은 원화가 아니라 priceText($83, ¥1490 등)로만 가격이 있다.
+    price.textContent = typeof item.price === 'number' ? won(item.price) : (item.priceText || '가격 미확인');
     if (typeof item.savingsVsOriginal === 'number' && item.savingsVsOriginal > 0) {
       price.textContent += ` (원래 제품보다 ${won(item.savingsVsOriginal)} 저렴)`;
     }
     info.append(title, meta, price);
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    const wishBtn = document.createElement('button');
-    wishBtn.className = 'wish-btn';
-    wishBtn.textContent = '찜하기';
-    wishBtn.onclick = () => sendText(`${item.name} (${item.id}) 찜해줘`);
-    const buyBtn = document.createElement('button');
-    buyBtn.className = 'buy-btn';
-    buyBtn.textContent = '사러 가기';
-    buyBtn.onclick = () => recordPurchaseClick(item.url);
-    actions.append(wishBtn, buyBtn);
+    if (item.isSample) {
+      // 예시 대체템: 손민수위키 검수 데이터가 아니라서 위키 링크도, 찜도 없이 "바로 구매"만 보여준다.
+      const buyBtn = document.createElement('button');
+      buyBtn.className = 'buy-btn';
+      buyBtn.textContent = '바로 구매';
+      buyBtn.onclick = () => recordPurchaseClick(item.url);
+      actions.append(buyBtn);
+    } else {
+      const wishBtn = document.createElement('button');
+      wishBtn.className = 'wish-btn';
+      wishBtn.textContent = '찜하기';
+      wishBtn.onclick = () => sendText(`${item.name} (${item.id}) 찜해줘`);
+      actions.append(wishBtn);
+      if (item.wikiUrl) {
+        const wikiBtn = document.createElement('button');
+        wikiBtn.className = 'buy-btn';
+        wikiBtn.textContent = '손민수위키에서 보기';
+        wikiBtn.onclick = () => window.open(item.wikiUrl, '_blank', 'noopener');
+        actions.append(wikiBtn);
+      }
+      const buyLink = document.createElement('button');
+      buyLink.className = 'link-btn';
+      buyLink.textContent = '바로 구매';
+      buyLink.onclick = () => recordPurchaseClick(item.url);
+      actions.append(buyLink);
+    }
     card.append(thumb, info, actions);
     return card;
   }
@@ -432,13 +456,38 @@
         name.className = 'name';
         const tag = stop.isFavoriteMemberVisit ? ' · 최애가 다녀간 곳'
           : stop.isFavoriteGroupVisit ? ' · 같은 그룹이 다녀간 곳'
+          : stop.isFandomSpot ? ' · 팬덤 성지'
           : stop.isBrandMatch ? ' · 착용 브랜드 매장' : '';
         name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}${tag}`;
         const meta = document.createElement('div');
         meta.className = 'meta';
-        const visitNote = (stop.visits || []).map(v => `${v.member}(${v.date})`).join(', ');
+        const visitNote = (stop.visits || []).filter(v => v.member).map(v => v.date ? `${v.member}(${v.date})` : v.member).join(', ');
         meta.textContent = `${stop.type} · ${stop.note}` + (visitNote ? ` · 방문: ${visitNote}` : '');
         body.append(name, meta);
+        if (stop.mustTry) {
+          const must = document.createElement('div');
+          must.className = 'meta';
+          must.style.color = 'var(--accent-dark)';
+          must.textContent = `위시 픽: ${stop.mustTry}`;
+          body.append(must);
+        }
+        const placeActions = document.createElement('div');
+        placeActions.style.cssText = 'display:flex;gap:.5rem;margin-top:.3rem;';
+        if (stop.naverMapUrl) {
+          const mapBtn = document.createElement('button');
+          mapBtn.className = 'buy-btn';
+          mapBtn.textContent = '네이버지도';
+          mapBtn.onclick = () => window.open(stop.naverMapUrl, '_blank', 'noopener');
+          placeActions.append(mapBtn);
+        }
+        if (stop.recreeUrl) {
+          const recreeBtn = document.createElement('button');
+          recreeBtn.className = 'link-btn';
+          recreeBtn.textContent = 'reCree에서 보기';
+          recreeBtn.onclick = () => window.open(stop.recreeUrl, '_blank', 'noopener');
+          placeActions.append(recreeBtn);
+        }
+        if (placeActions.children.length > 0) body.append(placeActions);
         row.append(time, body);
         box.append(row);
       }

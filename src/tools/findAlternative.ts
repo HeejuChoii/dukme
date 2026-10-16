@@ -35,9 +35,13 @@ export const findAlternativeHandler: ToolHandler = async (invocation) => {
   const items = await loadItems();
   const alternatives = items
     .filter((item) => item.alternativeOf === itemId)
-    .filter((item) => maxPrice === undefined || item.price <= maxPrice)
-    .sort((a, b) => a.price - b.price)
-    .map((item) => ({ ...item, savingsVsOriginal: original.price - item.price }));
+    // price가 없고 priceText만 있는 아이템(해외 통화 등)은 원화 예산과 비교할 수 없으니 그냥 포함시킨다.
+    .filter((item) => maxPrice === undefined || item.price === null || item.price <= maxPrice)
+    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+    .map((item) => ({
+      ...item,
+      savingsVsOriginal: original.price !== null && item.price !== null ? original.price - item.price : null,
+    }));
 
   const result = { original, maxPrice: maxPrice ?? null, count: alternatives.length, alternatives };
   emitCard({ tool: "findAlternative", data: result });

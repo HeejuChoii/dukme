@@ -43,6 +43,10 @@ export const planRouteDeclaration: ToolDeclaration = {
 };
 
 const TYPE_PRIORITY = ["카페", "매장", "포토스팟", "식당"];
+function typeRank(type: string): number {
+  const i = TYPE_PRIORITY.indexOf(type);
+  return i === -1 ? TYPE_PRIORITY.length : i; // 목록에 없는 타입(명소/한식/해변 등 실제 데이터의 다양한 타입)은 맨 뒤로, 맨 앞으로 새치기하지 않게
+}
 
 function parseStartMinutes(startTime: unknown): number {
   const text = typeof startTime === "string" ? startTime.trim() : "";
@@ -94,24 +98,33 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const isBrandMatch = (place: Place): boolean =>
     place.type === "매장" && Array.from(interestingBrands).some((brand) => place.name.includes(brand) || place.note.includes(brand));
 
-  // 우선순위: ① 최애 멤버가 실제로 다녀간 곳 ② 같은 그룹 멤버가 다녀간 곳 ③ 착용 브랜드 매장 ④ 그 외(자리가 남을 때만).
+  // 우선순위: ① 최애 멤버가 실제로 다녀간 곳(단체 방문도 그룹이 맞으면 포함) ② 같은 그룹 멤버가 다녀간 곳
+  // ③ 성지(isFandomSpot)이거나 착용 브랜드 매장 ④ 그 외 일반 명소(자리가 남을 때만).
   const favoriteMember = norm(args.member as string | undefined);
   const favoriteGroupArg = norm(args.group as string | undefined);
   const favoriteGroup =
     favoriteGroupArg ||
     (favoriteMember ? norm(items.find((item) => fieldMatches(item.member, favoriteMember, aliases.members))?.group) : "");
 
+  const groupVisitMatch = (place: Place): boolean =>
+    Boolean(favoriteGroup) && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups));
+  const memberVisitMatch = (place: Place): boolean =>
+    Boolean(favoriteMember) &&
+    place.visits.some((v) =>
+      v.member === "단체" ? Boolean(favoriteGroup) && fieldMatches(v.group, favoriteGroup, aliases.groups) : fieldMatches(v.member, favoriteMember, aliases.members),
+    );
+
   const visitScore = (place: Place): number => {
-    if (favoriteMember && place.visits.some((v) => fieldMatches(v.member, favoriteMember, aliases.members))) return 3;
-    if (favoriteGroup && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups))) return 2;
-    if (isBrandMatch(place)) return 1;
-    return 0;
+    if (memberVisitMatch(place)) return 4;
+    if (groupVisitMatch(place)) return 3;
+    if (place.isFandomSpot || isBrandMatch(place)) return 2;
+    return 1;
   };
 
   const ranked = [...unvisited].sort((a, b) => {
     const scoreDiff = visitScore(b) - visitScore(a);
     if (scoreDiff !== 0) return scoreDiff;
-    return TYPE_PRIORITY.indexOf(a.type) - TYPE_PRIORITY.indexOf(b.type);
+    return typeRank(a.type) - typeRank(b.type);
   });
 
   const chosen = ranked.slice(0, maxStops);
@@ -125,9 +138,16 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     openHours: place.openHours,
     note: place.note,
     visits: place.visits,
+    isFandomSpot: place.isFandomSpot,
     isBrandMatch: isBrandMatch(place),
-    isFavoriteMemberVisit: favoriteMember ? place.visits.some((v) => fieldMatches(v.member, favoriteMember, aliases.members)) : false,
-    isFavoriteGroupVisit: favoriteGroup ? place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups)) : false,
+    isFavoriteMemberVisit: memberVisitMatch(place),
+    isFavoriteGroupVisit: !memberVisitMatch(place) && groupVisitMatch(place),
+    mustTry: place.mustTry,
+    tip: place.tip,
+    lat: place.lat,
+    lng: place.lng,
+    naverMapUrl: place.naverMapUrl,
+    recreeUrl: place.recreeUrl,
   }));
 
   const excludedVisited = areaPlaces.length - unvisited.length;

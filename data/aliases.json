@@ -1,17 +1,17 @@
 {
   "members": {
     "리쿠": ["릭구", "riku"],
-    "유우": ["유", "yu", "yuu"],
+    "료": ["ryo"],
     "사쿠야": ["사쿠", "sakuya"],
-    "켄": ["ken"],
-    "시온": ["션", "sion", "shion"],
-    "신유": ["신유야", "shinyu", "sinyu"],
-    "소운": ["소운이", "soul", "soun"],
-    "현진": ["현진이", "hyunjin"],
-    "필릭스": ["펠릭스", "felix"],
-    "방찬": ["채널", "bangchan", "chan"],
+    "재희": ["jaehee"],
+    "유우시": ["유시", "유우", "yushi"],
+    "시온": ["오시온", "션", "sion", "shion"],
+    "리노": ["lee know", "leeknow"],
     "한": ["한이", "han"],
-    "아이엔": ["아인", "i.n", "in"]
+    "방찬": ["bangchan", "chan"],
+    "승민": ["seungmin"],
+    "창빈": ["changbin"],
+    "필릭스": ["펠릭스", "felix"]
   },
   "groups": {
     "NCT WISH": ["위시", "엔시티위시", "엔위", "nct wish", "nctwish"],

@@ -33,11 +33,19 @@ export const searchItemDeclaration: ToolDeclaration = {
           type: "boolean",
           description: "true면 대체템도 섞어서 반환. 기본 false(원래 제품만). 예산 안의 대체템은 findAlternative를 쓰는 게 맞다.",
         },
-        { name: "limit", type: "integer", description: "최대 결과 수", minimum: 1, maximum: 20 },
+        { name: "limit", type: "integer", description: "최대 결과 수 (최대 5)", minimum: 1, maximum: 5 },
       ],
     },
   ],
 };
+
+const MAX_RESULTS = 5; // 데이터가 커서 토큰 절약을 위해 결과를 항상 5개로 제한한다.
+
+function memberMatches(item: Item, filter: string, aliases: Aliases): boolean {
+  if (!filter) return true;
+  if (item.member === "단체") return true; // 멤버 전원이 착용 — 어떤 멤버를 물어도 관련 있음
+  return fieldMatches(item.member, filter, aliases.members);
+}
 
 function matches(item: Item, text: string, aliases: Aliases): boolean {
   if (!text) return true;
@@ -62,13 +70,13 @@ export const searchItemHandler: ToolHandler = async (invocation) => {
   const category = norm(args.category as string | undefined);
   const keywords = norm(args.keywords as string | undefined);
   const includeAlternatives = args.includeAlternatives === true;
-  const limit = typeof args.limit === "number" ? Math.min(20, Math.max(1, args.limit)) : 10;
+  const limit = typeof args.limit === "number" ? Math.min(MAX_RESULTS, Math.max(1, args.limit)) : MAX_RESULTS;
 
   const [items, aliases] = await Promise.all([loadItems(), loadAliases()]);
   const results = items
     .filter((item) => includeAlternatives || item.isOriginal)
     .filter((item) => fieldMatches(item.group, group, aliases.groups))
-    .filter((item) => fieldMatches(item.member, member, aliases.members))
+    .filter((item) => memberMatches(item, member, aliases))
     .filter((item) => !situation || norm(item.situation).includes(situation))
     .filter((item) => !category || norm(item.category).includes(category))
     .filter((item) => matches(item, keywords, aliases))

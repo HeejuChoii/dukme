@@ -10,35 +10,54 @@ const dataDir = path.join(here, "..", "data");
 export interface Item {
   id: string;
   group: string;
-  member: string;
+  member: string; // "단체"면 멤버 전원이 같이 착용
   situation: string;
   date: string;
   category: string;
+  detailCategory: string | null;
   brand: string;
   name: string;
-  price: number;
-  url: string;
+  price: number | null; // null이면 priceText를 대신 쓴다 ($83, ¥1490 등 원화 아닌 가격)
+  priceText: string | null;
+  url: string; // 바로 구매 링크 (쇼핑몰 검색 결과 또는 실제 상품 페이지)
+  shop: string | null; // "무신사", "네이버", "랄프로렌 공식몰" 등
+  wikiUrl: string | null; // 손민수위키 상세 페이지. isSample이면 보통 null
+  sourceUrl: string | null; // 최초 목격 출처 (유튜브 타임스탬프 등)
   features: string;
+  accuracy: string | null; // "certain" 등 손민수위키 검수 상태
+  soldOut: boolean;
   isOriginal: boolean;
   alternativeOf: string | null;
+  isSample: boolean; // true면 손민수위키 검수 데이터가 아니라 시연용 예시 대체템
 }
 
 export interface PlaceVisit {
   group: string;
-  member: string;
-  date: string;
-  context: string;
+  member: string; // "단체"면 멤버 전원
+  date: string | null;
+  context: string | null; // "Fan Spot"/"Variety"/"SNS" 같은 짧은 태그
 }
 
 export interface Place {
   id: string;
   name: string;
   area: string;
+  region: string;
   address: string;
   type: string;
   visits: PlaceVisit[];
-  openHours: string;
+  openHours: string | null;
   note: string;
+  mustTry: string | null; // "위시 픽: ..." 한 줄로 카드에 보여줄 메뉴/할 일
+  context: string | null; // 장소에 대한 긴 설명(왜 성지인지 등)
+  tip: string | null;
+  lat: number;
+  lng: number;
+  naverMapUrl: string;
+  googleMapUrl: string | null;
+  recreeUrl: string | null;
+  sourceUrl: string | null;
+  isFandomSpot: boolean;
 }
 
 export interface Aliases {
