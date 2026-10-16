@@ -94,6 +94,13 @@
   }
   #purchase-counter.show { opacity: 1; }
 
+  #affiliate-toast {
+    position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); background: #111; color: #fff;
+    padding: .55rem 1rem; border-radius: 999px; font-size: .82rem; box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    z-index: 20; opacity: 0; transition: opacity .15s; pointer-events: none;
+  }
+  #affiliate-toast.show { opacity: 1; }
+
   .timeline { border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; background: #fff; }
   .timeline h4 { margin: 0 0 .4rem; font-size: .9rem; color: var(--accent-dark); }
   .stop { display: flex; gap: .6rem; padding: .35rem 0; border-top: 1px dashed var(--border); }
@@ -163,6 +170,7 @@
 </main>
 
 <div id="purchase-counter">구매 연결 0건</div>
+<div id="affiliate-toast">손민수위키 제휴 링크로 이동해요</div>
 
 <script>
   const log = document.getElementById('log');
@@ -261,8 +269,28 @@
   }
 
   // "사러 가기": 실제 결제 연동은 범위 밖(PRD §12)이라 상품 url을 새 탭으로 열고, 구석 카운터만 올린다.
+  // 수익 모델(제휴 링크)을 보여주기 위해, 새 탭에 바로 목적지를 넣지 않고 "이동 중" 안내 페이지를
+  // 먼저 열어서(팝업 차단 걱정 없이 이 탭의 위치만 나중에 바꾸는 방식) 1초간 보여준 뒤 이동시킨다.
+  const affiliateToastEl = document.getElementById('affiliate-toast');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   async function recordPurchaseClick(url) {
-    if (url) window.open(url, '_blank', 'noopener');
+    affiliateToastEl.classList.add('show');
+    let win = null;
+    if (url) {
+      win = window.open('', '_blank');
+      if (win) {
+        win.document.write(
+          '<!doctype html><meta charset="utf-8"><title>이동 중…</title>' +
+          '<body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;' +
+          'font:16px -apple-system,sans-serif;color:#02a5c8;background:#fff;">' +
+          '손민수위키 제휴 링크로 이동 중…<script>window.opener=null</script></body>'
+        );
+      }
+    }
+    await sleep(1000);
+    affiliateToastEl.classList.remove('show');
+    if (win) win.location.href = url; else if (url) window.open(url, '_blank', 'noopener');
     try {
       const res = await fetch('/purchase-click', { method: 'POST' });
       const data = await res.json();
