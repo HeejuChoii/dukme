@@ -288,33 +288,29 @@
   const bubbles = new Map(); // message id -> element
   const miniAvatars = new Map(); // message id -> mini-avatar element (말풍선 옆 작은 얼굴)
 
-  // 덕메 오리지널 마스코트: 실제 아이돌·기존 캐릭터·응원봉을 닮지 않은 단순한 동글이 얼굴.
-  // 머리 위 동그란 혹 2개 + 몸(원) + 얼굴판은 모든 표정이 공유하고, 눈/입만 바꿔서 표정을 표현한다.
+  // 덕메 마스코트: assets/dukme-face.png 스타일(청록 둥근 사각형 + 흰 세로 눈 두 개) 그대로 SVG로
+  // 다시 그렸다. 기본은 그 그림 그대로, 나머지 표정은 눈 모양만 바꾸고 불필요한 장식은 넣지 않는다.
+  const DUKME_BODY = `<rect x="8" y="8" width="84" height="84" rx="20" fill="#02a5c8"/>`;
   const DUKME_FACE = {
-    idle: `<circle cx="40" cy="54" r="4" fill="#0b3b45"/><circle cx="60" cy="54" r="4" fill="#0b3b45"/>
-      <path d="M40 66 Q50 72 60 66" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
-    think: `<path d="M34 46 Q40 43 46 46" stroke="#0b3b45" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <circle cx="40" cy="52" r="3.5" fill="#0b3b45"/><circle cx="60" cy="52" r="3.5" fill="#0b3b45"/>
-      <path d="M44 68 Q50 70 56 68" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
-    happy: `<path d="M34 52 Q40 46 46 52" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M54 52 Q60 46 66 52" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M38 64 Q50 78 62 64" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>`,
-    cheer: `<path d="M40 48 L42 53 L47 55 L42 57 L40 62 L38 57 L33 55 L38 53 Z" fill="#0b3b45"/>
-      <path d="M60 48 L62 53 L67 55 L62 57 L60 62 L58 57 L53 55 L58 53 Z" fill="#0b3b45"/>
-      <ellipse cx="50" cy="67" rx="9" ry="7" fill="#0b3b45"/>
-      <circle cx="18" cy="28" r="2.5" fill="#ffd166"/><circle cx="83" cy="32" r="2.5" fill="#ff6b6b"/>
-      <circle cx="22" cy="86" r="2" fill="#06d6a0"/><circle cx="80" cy="88" r="2" fill="#ffd166"/>`,
-    sorry: `<path d="M35 50 L45 56 M45 50 L35 56" stroke="#0b3b45" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M55 50 L65 56 M65 50 L55 56" stroke="#0b3b45" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M42 69 Q50 65 58 69" stroke="#0b3b45" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M72 40 Q76 46 72 51 Q68 46 72 40 Z" fill="#8fe0ef"/>`,
+    idle: `<rect x="32" y="36" width="10" height="28" rx="5" fill="#fff"/>
+      <rect x="58" y="36" width="10" height="28" rx="5" fill="#fff"/>`,
+    think: `<rect x="30" y="30" width="10" height="24" rx="5" fill="#fff"/>
+      <rect x="56" y="30" width="10" height="24" rx="5" fill="#fff"/>
+      <text x="70" y="36" font-size="24" font-weight="700" fill="#fff" font-family="-apple-system,sans-serif">?</text>`,
+    happy: `<path d="M28 50 Q37 36 46 50" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M54 50 Q63 36 72 50" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/>`,
+    cheer: `<rect x="32" y="36" width="10" height="28" rx="5" fill="#fff"/>
+      <rect x="58" y="36" width="10" height="28" rx="5" fill="#fff"/>
+      <circle cx="23" cy="58" r="6" fill="#ffb3c6"/><circle cx="77" cy="58" r="6" fill="#ffb3c6"/>
+      <path d="M18 18 L20 24 L26 26 L20 28 L18 34 L16 28 L10 26 L16 24 Z" fill="#ffd166"/>
+      <path d="M82 18 L84 24 L90 26 L84 28 L82 34 L80 28 L74 26 L80 24 Z" fill="#ffd166"/>`,
+    sorry: `<rect x="32" y="40" width="10" height="24" rx="5" fill="#fff" transform="rotate(-12 37 52)"/>
+      <rect x="58" y="40" width="10" height="24" rx="5" fill="#fff" transform="rotate(12 63 52)"/>`,
   };
   function dukmeAvatarSvg(name) {
     const face = DUKME_FACE[name] || DUKME_FACE.idle;
     return `<svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="33" cy="20" r="8" fill="#02a5c8"/><circle cx="67" cy="20" r="8" fill="#02a5c8"/>
-      <circle cx="50" cy="56" r="42" fill="#02a5c8"/>
-      <ellipse cx="50" cy="59" rx="30" ry="25" fill="#eafbfd"/>
+      ${DUKME_BODY}
       ${face}
     </svg>`;
   }
