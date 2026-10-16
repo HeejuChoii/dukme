@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>덕메</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   :root {
     --accent: #02a5c8;
@@ -124,6 +125,13 @@
   .stop .body .name { font-weight: 600; font-size: .88rem; }
   .stop .body .meta { font-size: .76rem; color: var(--muted); }
 
+  .route-map { height: 220px; border-radius: 8px; margin-top: .6rem; background: var(--panel-bg); }
+  .route-map-pin {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
+    border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+
   form#composer {
     display: flex; gap: .5rem; padding: .7rem 1rem; border-top: 1px solid var(--border); flex-shrink: 0;
   }
@@ -190,6 +198,7 @@
 <div id="purchase-counter">구매 연결 0건</div>
 <div id="affiliate-toast">손민수위키 제휴 링크로 이동해요</div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const log = document.getElementById('log');
   const avatar = document.getElementById('avatar');
@@ -493,7 +502,42 @@
       }
     }
     wrap.append(box);
+    renderRouteMap(wrap, data.course || []);
     scrollDown();
+  }
+
+  // Leaflet + OpenStreetMap (API 키 없이). 좌표가 없거나 라이브러리가 안 불러와졌으면 조용히 건너뛴다 —
+  // 지도가 실패해도 위의 코스 목록(box)은 이미 그려져 있으니 그대로 보인다.
+  let routeMapCounter = 0;
+  function renderRouteMap(wrap, course) {
+    const withCoords = course.filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
+    if (withCoords.length === 0 || typeof L === 'undefined') return;
+    const mapId = `route-map-${++routeMapCounter}`;
+    const mapDiv = document.createElement('div');
+    mapDiv.className = 'route-map';
+    mapDiv.id = mapId;
+    wrap.append(mapDiv);
+    try {
+      const map = L.map(mapId, { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+      const latlngs = withCoords.map((s) => [s.lat, s.lng]);
+      withCoords.forEach((s, i) => {
+        const icon = L.divIcon({ className: 'route-map-pin', html: String(i + 1), iconSize: [24, 24] });
+        const visitNote = (s.visits || []).filter((v) => v.member).map((v) => v.member).join(', ');
+        const popup = `<strong>${escapeHtml(s.name)}</strong>` +
+          (visitNote ? `<br>방문: ${escapeHtml(visitNote)}` : '') +
+          (s.mustTry ? `<br>위시 픽: ${escapeHtml(s.mustTry)}` : '');
+        L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
+      });
+      if (latlngs.length > 1) L.polyline(latlngs, { color: '#02a5c8', weight: 3 }).addTo(map);
+      map.fitBounds(latlngs.length > 1 ? latlngs : [[latlngs[0][0] + 0.001, latlngs[0][1]], latlngs[0]], { padding: [24, 24], maxZoom: 15 });
+    } catch (err) {
+      console.warn('지도를 띄우지 못했어요 (코스 목록은 그대로 보여요):', err);
+      mapDiv.remove();
+    }
   }
 
   function renderAddWishlist(data) {
