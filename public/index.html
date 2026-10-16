@@ -95,13 +95,13 @@
   /* 기억 패널: 열고 닫는 서랍(drawer) — 폰 폭에서는 상시 사이드바가 들어갈 자리가 없어서. */
   #drawer-backdrop {
     position: absolute; inset: 0; background: rgba(15, 32, 39, .35);
-    opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 25;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 2000;
   }
   #drawer-backdrop.show { opacity: 1; pointer-events: auto; }
   #memory-col {
     position: absolute; top: 0; right: 0; bottom: 0; width: 86%; max-width: 320px;
     background: var(--panel-bg); border-left: 1px solid var(--border);
-    padding: .9rem; overflow-y: auto; z-index: 26;
+    padding: .9rem; overflow-y: auto; z-index: 2001;
     transform: translateX(105%); transition: transform .25s ease;
     display: flex; flex-direction: column;
   }
@@ -190,7 +190,10 @@
   .stop .body .name { font-weight: 600; font-size: .88rem; color: var(--text); }
   .stop .body .meta { font-size: .76rem; color: var(--muted); }
 
-  .route-map { height: 220px; border-radius: var(--radius-control); margin-top: .6rem; background: var(--panel-bg); }
+  /* Leaflet이 내부적으로 쓰는 z-index(패널·컨트롤 등 1000대)가 바깥(서랍·배경막)으로 새서
+     기억 서랍 위로 지도가 튀어나오던 문제 — isolation으로 별도 쌓임 맥락을 만들어 가둔다. */
+  .route-map { height: 220px; border-radius: var(--radius-control); margin-top: .6rem; background: var(--panel-bg);
+    position: relative; z-index: 0; isolation: isolate; }
   .route-map-pin {
     width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
     display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
@@ -595,7 +598,7 @@
           const must = document.createElement('div');
           must.className = 'meta';
           must.style.color = 'var(--accent-dark)';
-          must.textContent = `위시 픽: ${stop.mustTry}`;
+          must.textContent = `${stop.mustTryLabel || '추천 메뉴'}: ${stop.mustTry}`;
           body.append(must);
         }
         const placeActions = document.createElement('div');
@@ -647,7 +650,7 @@
         const visitNote = (s.visits || []).filter((v) => v.member).map((v) => v.member).join(', ');
         const popup = `<strong>${escapeHtml(s.name)}</strong>` +
           (visitNote ? `<br>방문: ${escapeHtml(visitNote)}` : '') +
-          (s.mustTry ? `<br>위시 픽: ${escapeHtml(s.mustTry)}` : '');
+          (s.mustTry ? `<br>${escapeHtml(s.mustTryLabel || '추천 메뉴')}: ${escapeHtml(s.mustTry)}` : '');
         L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
       });
       if (latlngs.length > 1) L.polyline(latlngs, { color: '#02a5c8', weight: 3 }).addTo(map);
@@ -679,6 +682,15 @@
     refreshMemoryPanel();
   }
 
+  function renderFindPlaces(data) {
+    if (!data.regions || data.regions.length === 0) {
+      systemNote('성지 정보가 아직 확인되지 않았어요.');
+      return;
+    }
+    const line = data.regions.map((r) => `${r.region} ${r.count}곳`).join(', ');
+    systemNote(`전국에서 찾아봤어: ${line}`);
+  }
+
   const handlers = {
     searchItem: renderSearchItem,
     findAlternative: renderFindAlternative,
@@ -686,6 +698,7 @@
     planRoute: renderPlanRoute,
     updateOwned: renderUpdateOwned,
     markVisited: renderMarkVisited,
+    findPlaces: renderFindPlaces,
   };
 
   // 네트워크가 끊기면 브라우저가 EventSource를 알아서 계속 재연결하려고 한다 — 그때마다

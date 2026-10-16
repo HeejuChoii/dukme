@@ -2,7 +2,13 @@ import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadItems, loadPlaces, loadAliases, type Place } from "../data.js";
 import { readState } from "../state.js";
 import { emitCard } from "../bus.js";
-import { norm, fieldMatches } from "../aliasMatch.js";
+import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
+import { placeMatchesArea } from "../geo.js";
+
+function mustTryLabel(place: Place): string {
+  const group = place.visits.find((v) => v.group)?.group;
+  return group ? `${group} 픽` : "추천 메뉴";
+}
 
 export const planRouteDeclaration: ToolDeclaration = {
   name: "planRoute",
@@ -78,7 +84,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const user = context.user ?? "demo-user";
   const [places, items, state, aliases] = await Promise.all([loadPlaces(), loadItems(), readState(user), loadAliases()]);
 
-  const areaPlaces = places.filter((place) => place.area.includes(area) || area.includes(place.area));
+  const areaPlaces = places.filter((place) => placeMatchesArea(place, area));
   if (areaPlaces.length === 0) {
     const result = { status: "no_data", area, reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
     emitCard({ tool: "planRoute", data: result });
@@ -100,8 +106,16 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
 
   // 우선순위: ① 최애 멤버가 실제로 다녀간 곳(단체 방문도 그룹이 맞으면 포함) ② 같은 그룹 멤버가 다녀간 곳
   // ③ 성지(isFandomSpot)이거나 착용 브랜드 매장 ④ 그 외 일반 명소(자리가 남을 때만).
-  const favoriteMember = norm(args.member as string | undefined);
-  const favoriteGroupArg = norm(args.group as string | undefined);
+  let favoriteMember = norm(args.member as string | undefined);
+  let favoriteGroupArg = norm(args.group as string | undefined);
+  // "위시"처럼 그룹 별명을 member 자리에 넣는 경우가 있어서, 실제 멤버로 안 풀리면 그룹 별명인지 먼저 확인한다.
+  if (favoriteMember && !items.some((item) => fieldMatches(item.member, favoriteMember, aliases.members))) {
+    const asGroup = resolveGroupAlias(favoriteMember, aliases.groups);
+    if (asGroup) {
+      favoriteGroupArg = favoriteGroupArg || norm(asGroup);
+      favoriteMember = "";
+    }
+  }
   const favoriteGroup =
     favoriteGroupArg ||
     (favoriteMember ? norm(items.find((item) => fieldMatches(item.member, favoriteMember, aliases.members))?.group) : "");
@@ -143,6 +157,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     isFavoriteMemberVisit: memberVisitMatch(place),
     isFavoriteGroupVisit: !memberVisitMatch(place) && groupVisitMatch(place),
     mustTry: place.mustTry,
+    mustTryLabel: mustTryLabel(place),
     tip: place.tip,
     lat: place.lat,
     lng: place.lng,

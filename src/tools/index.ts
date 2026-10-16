@@ -5,6 +5,7 @@ import { addWishlistDeclaration, addWishlistHandler } from "./addWishlist.js";
 import { planRouteDeclaration, planRouteHandler } from "./planRoute.js";
 import { updateOwnedDeclaration, updateOwnedHandler } from "./updateOwned.js";
 import { markVisitedDeclaration, markVisitedHandler } from "./markVisited.js";
+import { findPlacesDeclaration, findPlacesHandler } from "./findPlaces.js";
 
 export const toolDeclarations: ToolDeclaration[] = [
   searchItemDeclaration,
@@ -13,6 +14,7 @@ export const toolDeclarations: ToolDeclaration[] = [
   planRouteDeclaration,
   updateOwnedDeclaration,
   markVisitedDeclaration,
+  findPlacesDeclaration,
 ];
 
 export const toolHandlers: Record<string, ToolHandler> = {
@@ -22,4 +24,5 @@ export const toolHandlers: Record<string, ToolHandler> = {
   planRoute: planRouteHandler,
   updateOwned: updateOwnedHandler,
   markVisited: markVisitedHandler,
+  findPlaces: findPlacesHandler,
 };
