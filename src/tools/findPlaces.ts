@@ -1,6 +1,6 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadPlaces, loadAliases, loadItems, type Place } from "../data.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
 import { placeMatchesArea, regionBucket } from "../geo.js";
 
@@ -26,7 +26,7 @@ export const findPlacesDeclaration: ToolDeclaration = {
   ],
 };
 
-export const findPlacesHandler: ToolHandler = async (invocation) => {
+export const findPlacesHandler: ToolHandler = async (invocation, context) => {
   if (invocation.key !== "find_places") {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
   }
@@ -89,6 +89,6 @@ export const findPlacesHandler: ToolHandler = async (invocation) => {
     regionCount: regions.length,
     regions: regions.map((r) => ({ region: r.region, count: r.count, hasFavoriteMemberVisit: r.hasFavoriteMemberVisit })),
   };
-  emitCard({ tool: "findPlaces", data: result });
+  emitCard({ tool: "findPlaces", data: result }, dedupeKeyFor("findPlaces", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

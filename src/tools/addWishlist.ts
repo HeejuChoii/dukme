@@ -1,7 +1,7 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findItemById } from "../data.js";
 import { updateState } from "../state.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 
 export const addWishlistDeclaration: ToolDeclaration = {
   name: "addWishlist",
@@ -37,6 +37,6 @@ export const addWishlistHandler: ToolHandler = async (invocation, context) => {
   });
 
   const result = { added: !already, alreadyInWishlist: already, item, wishlistCount };
-  emitCard({ tool: "addWishlist", data: result });
+  emitCard({ tool: "addWishlist", data: result }, dedupeKeyFor("addWishlist", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

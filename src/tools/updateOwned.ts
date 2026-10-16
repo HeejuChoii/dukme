@@ -1,7 +1,7 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findItemById } from "../data.js";
 import { updateState } from "../state.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 
 export const updateOwnedDeclaration: ToolDeclaration = {
   name: "updateOwned",
@@ -45,6 +45,6 @@ export const updateOwnedHandler: ToolHandler = async (invocation, context) => {
     item,
     ownedCount,
   };
-  emitCard({ tool: "updateOwned", data: result });
+  emitCard({ tool: "updateOwned", data: result }, dedupeKeyFor("updateOwned", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

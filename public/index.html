@@ -244,7 +244,7 @@
     <section id="chat-col">
       <div id="log"></div>
       <form id="composer" autocomplete="off">
-        <input id="text" placeholder="덕메에게 말해보세요 (예: 나 위시 시온 최애야)">
+        <input id="text" placeholder="덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)">
         <button type="submit">보내기</button>
       </form>
     </section>
@@ -563,7 +563,7 @@
     const box = document.createElement('div');
     box.className = 'timeline';
     const title = document.createElement('h4');
-    title.textContent = `${data.area} 코스${data.date ? ' · ' + data.date : ''}`;
+    title.textContent = `${data.area} 코스${data.days > 1 ? ' · ' + data.days + '일' : ''}${data.date ? ' · ' + data.date : ''}`;
     box.append(title);
     if (!data.course || data.course.length === 0) {
       const p = document.createElement('div');
@@ -571,7 +571,16 @@
       p.textContent = data.reason || '짤 수 있는 코스가 없어요.';
       box.append(p);
     } else {
+      let lastDay = null;
       for (const stop of data.course) {
+        if (data.days > 1 && stop.day !== lastDay) {
+          lastDay = stop.day;
+          const dayHead = document.createElement('div');
+          dayHead.className = 'meta';
+          dayHead.style.cssText = 'font-weight:700;color:var(--text);margin-top:.4rem;';
+          dayHead.textContent = `${stop.day}일차`;
+          box.append(dayHead);
+        }
         const row = document.createElement('div');
         row.className = 'stop';
         const time = document.createElement('div');
@@ -588,7 +597,8 @@
         name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}${tag}`;
         const meta = document.createElement('div');
         meta.className = 'meta';
-        const visitNote = (stop.visits || []).filter(v => v.member).map(v => v.date ? `${v.member}(${v.date})` : v.member).join(', ');
+        // KSPO DOME처럼 여러 그룹이 섞인 곳은 그룹 이름을 한 번씩만("단체, 단체…" 대신).
+        const visitNote = (stop.visitGroups && stop.visitGroups.length > 0) ? stop.visitGroups.join(', ') : '';
         meta.textContent = `${stop.type} · ${stop.note}` + (visitNote ? ` · 방문: ${visitNote}` : '');
         body.append(name, meta);
         if (stop.mustTry) {
@@ -644,7 +654,7 @@
       const latlngs = withCoords.map((s) => [s.lat, s.lng]);
       withCoords.forEach((s, i) => {
         const icon = L.divIcon({ className: 'route-map-pin', html: String(i + 1), iconSize: [24, 24] });
-        const visitNote = (s.visits || []).filter((v) => v.member).map((v) => v.member).join(', ');
+        const visitNote = (s.visitGroups && s.visitGroups.length > 0) ? s.visitGroups.join(', ') : '';
         const popup = `<strong>${escapeHtml(s.name)}</strong>` +
           (visitNote ? `<br>방문: ${escapeHtml(visitNote)}` : '') +
           (s.mustTry ? `<br>${escapeHtml(s.mustTryLabel || '추천 메뉴')}: ${escapeHtml(s.mustTry)}` : '');
@@ -679,13 +689,10 @@
     refreshMemoryPanel();
   }
 
+  // findPlaces는 지역별 개수를 모델이 답변 문장에서 그대로 말해주니(카드 UI가 따로 없음),
+  // 여기서 또 systemNote로 같은 내용을 띄우면 "두 번 나오는" 것처럼 보여서 화면에는 아무것도 안 띄운다.
   function renderFindPlaces(data) {
-    if (!data.regions || data.regions.length === 0) {
-      systemNote('성지 정보가 아직 확인되지 않았어요.');
-      return;
-    }
-    const line = data.regions.map((r) => `${r.region} ${r.count}곳`).join(', ');
-    systemNote(`전국에서 찾아봤어: ${line}`);
+    // no-op: 데이터는 모델의 답변 텍스트로 이미 전달됨.
   }
 
   const handlers = {
@@ -772,6 +779,7 @@
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
+    input.placeholder = '덕메에게 물어보세요'; // 한 번 말한 뒤엔 예시 문구 없이 짧게
     await sendText(text);
   };
 
@@ -813,6 +821,7 @@
     rawText.clear();
     resetExpression();
     purchaseCounterEl.classList.remove('show');
+    document.getElementById('text').placeholder = '덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)';
     systemNote('기억을 전부 초기화했어요.');
     refreshMemoryPanel();
   };

@@ -1,13 +1,22 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadItems, loadPlaces, loadAliases, type Place } from "../data.js";
 import { readState } from "../state.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
 import { placeMatchesArea } from "../geo.js";
+
+const DAY_START_MIN = 10 * 60;
+const DAY_END_MIN = 21 * 60;
 
 function mustTryLabel(place: Place): string {
   const group = place.visits.find((v) => v.group)?.group;
   return group ? `${group} 픽` : "추천 메뉴";
+}
+
+// KSPO DOME처럼 여러 그룹이 공유하는 다목적 장소는 "방문: 단체, 단체…"로 중복 표시되거나,
+// 특정 그룹 전용 성지인 양 최우선으로 뽑히면 안 된다 — 방문한 그룹 이름을 한 번씩만 모아 보여준다.
+function visitGroups(place: Place): string[] {
+  return Array.from(new Set(place.visits.map((v) => v.group).filter(Boolean)));
 }
 
 export const planRouteDeclaration: ToolDeclaration = {
@@ -23,8 +32,15 @@ export const planRouteDeclaration: ToolDeclaration = {
       flags: [
         { name: "area", type: "string", required: true, description: "지역 (예: 홍대, 성수)" },
         { name: "date", type: "string", description: "날짜 (예: 2026-10-24). 참고용, 영업시간 검증에는 쓰지 않음" },
-        { name: "startTime", type: "string", description: "시작 시각 HH:MM (예: 14:00). 생략 시 14:00" },
-        { name: "maxStops", type: "integer", minimum: 1, maximum: 6, description: "최대 코스 수 (기본 4)" },
+        { name: "startTime", type: "string", description: "하루 시작 시각 HH:MM. 10:00~21:00 안에서만, 생략 시 10:00" },
+        { name: "maxStops", type: "integer", minimum: 1, maximum: 6, description: "하루당 최대 코스 수 (기본 4)" },
+        {
+          name: "days",
+          type: "integer",
+          minimum: 1,
+          maximum: 3,
+          description: "여행 일수. '이틀 코스' 같은 요청이면 2를 넣는다 — 하루치씩 따로따로 부르지 말고 한 번에 요청한다. 날마다 다른 장소로, 시간은 10~21시 안에서 짠다.",
+        },
         {
           name: "itemIds",
           type: "string",
@@ -57,10 +73,11 @@ function typeRank(type: string): number {
 function parseStartMinutes(startTime: unknown): number {
   const text = typeof startTime === "string" ? startTime.trim() : "";
   const match = /^(\d{1,2}):(\d{2})$/.exec(text);
-  if (!match) return 14 * 60; // default 14:00
+  if (!match) return DAY_START_MIN; // default 10:00
   const hour = Math.min(23, Number(match[1]));
   const minute = Math.min(59, Number(match[2]));
-  return hour * 60 + minute;
+  // 시간은 10~21시 안에서만.
+  return Math.min(DAY_END_MIN, Math.max(DAY_START_MIN, hour * 60 + minute));
 }
 
 function formatMinutes(total: number): string {
@@ -79,6 +96,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   if (!area) return { status: "rejected", reason: "area(지역)가 필요해요." };
   const date = typeof args.date === "string" ? args.date : null;
   const maxStops = typeof args.maxStops === "number" ? Math.min(6, Math.max(1, args.maxStops)) : 4;
+  const days = typeof args.days === "number" ? Math.min(3, Math.max(1, Math.round(args.days))) : 1;
   const startMinutes = parseStartMinutes(args.startTime);
 
   const user = context.user ?? "demo-user";
@@ -87,7 +105,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const areaPlaces = places.filter((place) => placeMatchesArea(place, area));
   if (areaPlaces.length === 0) {
     const result = { status: "no_data", area, reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
-    emitCard({ tool: "planRoute", data: result });
+    emitCard({ tool: "planRoute", data: result }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
     return result as unknown as JsonValue;
   }
 
@@ -128,9 +146,12 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
       v.member === "단체" ? Boolean(favoriteGroup) && fieldMatches(v.group, favoriteGroup, aliases.groups) : fieldMatches(v.member, favoriteMember, aliases.members),
     );
 
+  // KSPO DOME류의 다목적 장소(여러 그룹이 섞여 있음)는 최애 전용 성지처럼 최우선으로 뽑히면 안 된다.
+  const isSharedVenue = (place: Place): boolean => visitGroups(place).length > 1;
+
   const visitScore = (place: Place): number => {
-    if (memberVisitMatch(place)) return 4;
-    if (groupVisitMatch(place)) return 3;
+    if (!isSharedVenue(place) && memberVisitMatch(place)) return 4;
+    if (!isSharedVenue(place) && groupVisitMatch(place)) return 3;
     if (place.isFandomSpot || isBrandMatch(place)) return 2;
     return 1;
   };
@@ -141,39 +162,56 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     return typeRank(a.type) - typeRank(b.type);
   });
 
-  const chosen = ranked.slice(0, maxStops);
-  const course = chosen.map((place, index) => ({
-    time: formatMinutes(startMinutes + index * 90),
-    placeId: place.id,
-    name: place.name,
-    area: place.area,
-    type: place.type,
-    address: place.address,
-    openHours: place.openHours,
-    note: place.note,
-    visits: place.visits,
-    isFandomSpot: place.isFandomSpot,
-    isBrandMatch: isBrandMatch(place),
-    isFavoriteMemberVisit: memberVisitMatch(place),
-    isFavoriteGroupVisit: !memberVisitMatch(place) && groupVisitMatch(place),
-    mustTry: place.mustTry,
-    mustTryLabel: mustTryLabel(place),
-    tip: place.tip,
-    lat: place.lat,
-    lng: place.lng,
-    naverMapUrl: place.naverMapUrl,
-    recreeUrl: place.recreeUrl,
-  }));
+  const totalStops = maxStops * days;
+  const chosen = ranked.slice(0, totalStops);
+
+  // 날마다 다른 장소로: 랭킹 순서대로 하루당 maxStops개씩 나눠 담는다.
+  const course: unknown[] = [];
+  for (let day = 1; day <= days; day++) {
+    const dayPlaces = chosen.slice((day - 1) * maxStops, day * maxStops);
+    if (dayPlaces.length === 0) break;
+    // 90분 간격이 10~21시를 넘으면 그 하루 분량 안에서 간격을 좁힌다.
+    const span = DAY_END_MIN - startMinutes;
+    const gap = dayPlaces.length > 1 ? Math.min(90, Math.floor(span / (dayPlaces.length - 1))) : 0;
+    dayPlaces.forEach((place, index) => {
+      course.push({
+        day,
+        time: formatMinutes(startMinutes + index * gap),
+        placeId: place.id,
+        name: place.name,
+        area: place.area,
+        type: place.type,
+        address: place.address,
+        openHours: place.openHours,
+        note: place.note,
+        visits: place.visits,
+        visitGroups: visitGroups(place),
+        isSharedVenue: isSharedVenue(place),
+        isFandomSpot: place.isFandomSpot,
+        isBrandMatch: isBrandMatch(place),
+        isFavoriteMemberVisit: !isSharedVenue(place) && memberVisitMatch(place),
+        isFavoriteGroupVisit: !isSharedVenue(place) && !memberVisitMatch(place) && groupVisitMatch(place),
+        mustTry: place.mustTry,
+        mustTryLabel: mustTryLabel(place),
+        tip: place.tip,
+        lat: place.lat,
+        lng: place.lng,
+        naverMapUrl: place.naverMapUrl,
+        recreeUrl: place.recreeUrl,
+      });
+    });
+  }
 
   const excludedVisited = areaPlaces.length - unvisited.length;
   const result = {
     area,
     date,
+    days,
     startTime: formatMinutes(startMinutes),
     excludedAlreadyVisited: excludedVisited,
     count: course.length,
     course,
   };
-  emitCard({ tool: "planRoute", data: result });
+  emitCard({ tool: "planRoute", data: result }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

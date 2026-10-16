@@ -1,6 +1,6 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadItems, loadAliases, type Item, type Aliases } from "../data.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches } from "../aliasMatch.js";
 
 export const searchItemDeclaration: ToolDeclaration = {
@@ -59,7 +59,7 @@ function matches(item: Item, text: string, aliases: Aliases): boolean {
     .some((token) => haystack.includes(token));
 }
 
-export const searchItemHandler: ToolHandler = async (invocation) => {
+export const searchItemHandler: ToolHandler = async (invocation, context) => {
   if (invocation.key !== "search_item") {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
   }
@@ -93,6 +93,6 @@ export const searchItemHandler: ToolHandler = async (invocation) => {
     count: results.length,
     results,
   };
-  emitCard({ tool: "searchItem", data: result });
+  emitCard({ tool: "searchItem", data: result }, dedupeKeyFor("searchItem", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

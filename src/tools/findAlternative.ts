@@ -1,10 +1,11 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { findItemById, loadItems } from "../data.js";
-import { emitCard } from "../bus.js";
+import { emitCard, dedupeKeyFor } from "../bus.js";
 
 export const findAlternativeDeclaration: ToolDeclaration = {
   name: "findAlternative",
-  summary: "원래 제품(itemId)의 대체템을 예산(maxPrice) 안에서 찾는다. 원래 제품이 비싸거나 품절일 때 쓴다.",
+  summary:
+    "원래 제품(itemId)의 대체템을 예산(maxPrice) 안에서 찾는다. 원래 제품이 예산을 넘을 때만 쓰고, 검색 결과가 여러 개여도 대표 아이템 1개에 대해서만 호출한다 (여러 아이템마다 전부 부르지 않는다).",
   commands: [
     {
       key: "find_alternative",
@@ -19,7 +20,7 @@ export const findAlternativeDeclaration: ToolDeclaration = {
   ],
 };
 
-export const findAlternativeHandler: ToolHandler = async (invocation) => {
+export const findAlternativeHandler: ToolHandler = async (invocation, context) => {
   if (invocation.key !== "find_alternative") {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
   }
@@ -44,6 +45,6 @@ export const findAlternativeHandler: ToolHandler = async (invocation) => {
     }));
 
   const result = { original, maxPrice: maxPrice ?? null, count: alternatives.length, alternatives };
-  emitCard({ tool: "findAlternative", data: result });
+  emitCard({ tool: "findAlternative", data: result }, dedupeKeyFor("findAlternative", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };
