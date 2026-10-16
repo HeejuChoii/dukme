@@ -511,6 +511,9 @@
       const mini = miniAvatars.get(event.id);
       if (mini) mini.textContent = EXPRESSIONS[resolved].emoji;
       refreshMemoryPanel();
+      // Croche의 기억 저장은 답변이 끝난 뒤 따로 완료될 때가 있어서(테스트 결과 7초 대기 85% ->
+      // 15초 대기 95%), 한 번 더 늦게 조회해서 뒤늦게 저장된 기억도 패널에 반영한다.
+      setTimeout(refreshMemoryPanel, 4000);
       scrollDown();
     }
     // 도구가 실제로 실행되는 동안 (state.activity === 'tool') 바로 :think: 표정으로 바꾼다 —

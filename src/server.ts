@@ -76,6 +76,12 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 const MARKER_GUIDE =
   ":happy: 기쁠 때 (사용자가 반가운 소식을 전했거나, 좋은 걸 찾았거나, 찜을 골랐을 때도 포함). :think: 아이템/코스를 찾는 중이거나 고민할 때 (도구를 호출하기 직전/중일 때 특히). :cheer: 사용자가 실제로 템을 '샀다'거나 성지를 '다녀왔다'고 말했을 때만 — 가장 신나는 순간이니 찜 정도에는 happy를 쓰고 cheer는 아껴둔다.";
 
+// 기억 저장(memory.save)은 모델이 스스로 판단해서 트리거하는 Croche 내장 기능이라, 저장 시점을
+// instructions가 아니라 여기 policy로 직접 못박아둔다 — 그래야 첫 턴에 최애/사이즈/예산이 나왔을 때
+// 거의 항상 바로 저장된다 (PRD §7, 시나리오 1).
+const MEMORY_POLICY =
+  "사용자가 최애 그룹·멤버, 예산, 사이즈(상의/하의/신발), 보유 아이템, 위시리스트, 방문한 성지, 취향 키워드 중 하나라도 말하면 반드시 그 즉시(같은 턴 안에) 저장한다. 특히 대화 맨 처음에 최애·사이즈·예산이 나오면 절대 건너뛰지 않고 바로 기억한다. 외출 날짜·지역·목적처럼 그 대화에서만 쓰는 정보는 저장하지 않는다.";
+
 const croche = await Croche.open({
   projectKey: CROCHE_PROJECT_KEY,
   // 개발용 debug key만 사용 (PRD §5). 프로덕션 배포는 이 해커톤 범위 밖(PRD §12).
@@ -90,6 +96,7 @@ const croche = await Croche.open({
     // 한 메시지에 여러 요청이 들어와 searchItem→findAlternative→addWishlist→planRoute까지
     // 한 턴에서 전부 호출해야 하는 경우가 있어, 기본값보다 넉넉하게 잡아둔다.
     maxIterations: 12,
+    memory: { policy: MEMORY_POLICY },
   },
   handlers: toolHandlers,
 });
