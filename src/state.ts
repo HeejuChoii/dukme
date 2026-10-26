@@ -20,7 +20,7 @@ export interface FanPreferences {
   sizeBottom?: string;
   sizeShoes?: string;
   shoppingMode?: "shopping" | "travel" | "both";
-  language?: "ko" | "en" | "ja" | "zh-TW"; // 사용자가 선택한 응답 언어
+  language?: "ko" | "en" | "ja" | "zh-CN" | "zh-TW"; // 사용자가 선택한 응답 언어
 }
 
 export interface AppState {

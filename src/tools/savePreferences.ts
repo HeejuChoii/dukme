@@ -16,7 +16,7 @@ export const savePreferencesDeclaration: ToolDeclaration = {
       { name: "sizeBottom", type: "string", description: "하의 사이즈" },
       { name: "sizeShoes", type: "string", description: "신발 사이즈" },
       { name: "shoppingMode", type: "string", description: "shopping(쇼핑), travel(성지), both(둘 다) 중 하나" },
-      { name: "language", type: "string", description: "사용자가 명시한 선호 응답 언어: ko, en, ja, zh-TW" },
+      { name: "language", type: "string", description: "사용자가 명시한 선호 응답 언어: ko, en, ja, zh-CN(간체), zh-TW(번체)" },
     ],
   }],
 };
@@ -33,7 +33,7 @@ export const savePreferencesHandler: ToolHandler = async (invocation, context) =
     changes.colors = a.colors.split(/[,，/]/).map(v => v.trim()).filter(Boolean).slice(0,8);
   }
   if (a.shoppingMode === "shopping" || a.shoppingMode === "travel" || a.shoppingMode === "both") changes.shoppingMode = a.shoppingMode;
-  if (["ko", "en", "ja", "zh-TW"].includes(String(a.language))) changes.language = a.language as "ko" | "en" | "ja" | "zh-TW";
+  if (["ko", "en", "ja", "zh-CN", "zh-TW"].includes(String(a.language))) changes.language = a.language as "ko" | "en" | "ja" | "zh-CN" | "zh-TW";
   if (!Object.keys(changes).length) return { status: "ignored", reason: "확인된 변경 사항 없음" };
   const preferences = await updateState(context.user ?? "demo-user", state => {
     state.preferences = { ...state.preferences, ...changes };

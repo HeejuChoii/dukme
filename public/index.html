@@ -376,7 +376,45 @@
     if (inputId !== currentTurnInputId) {
       currentTurnInputId = inputId;
       turnOriginalCards = new Map();
+      resetTurnSearch();
     }
+  }
+
+  // 에이전트는 한 턴 안에서 조건을 바꿔 여러 번 검색하는 경우가 많아서, 검색 결과가 비었다고 바로
+  // "결과 없음"을 띄우면 카드가 나오기 전에 잘못된 안내가 먼저 보인다. 그래서 도구가 도는 동안엔
+  // "찾고 있어요…" 하나만 보여 주고, 턴이 끝날 때까지 찾은 게 하나도 없을 때만 안내를 한 번 띄운다.
+  const SEARCH_TOOLS = ['searchItem', 'findAlternative', 'findPlaces', 'planRoute'];
+  let searchingNoteEl = null;
+  let turnFoundSomething = false; // 카드를 띄웠거나 findPlaces처럼 결과가 있었음
+  let turnHadEmptySearch = false;
+  let turnAgentText = '';
+  function resetTurnSearch() {
+    clearSearchingNote();
+    turnFoundSomething = false;
+    turnHadEmptySearch = false;
+    turnAgentText = '';
+  }
+  function showSearchingNote() {
+    if (searchingNoteEl && searchingNoteEl.isConnected) return;
+    searchingNoteEl = systemNote('찾고 있어요…');
+  }
+  function clearSearchingNote() {
+    if (searchingNoteEl) searchingNoteEl.remove();
+    searchingNoteEl = null;
+  }
+  function markFound() {
+    turnFoundSomething = true;
+    clearSearchingNote();
+  }
+  function finishTurnSearch() {
+    clearSearchingNote();
+    // 덕메 답변에 이미 같은 말이 있으면 화면 안내는 생략한다.
+    if (turnHadEmptySearch && !turnFoundSomething && !turnAgentText.includes('확인되지 않은')) {
+      systemNote('아직 확인되지 않은 정보예요. 손민수위키에 질문을 남겨 보면 다른 팬들이 찾아줄 수 있어요.');
+    }
+    turnHadEmptySearch = false;
+    turnFoundSomething = false;
+    turnAgentText = '';
   }
 
   const won = (n) => n.toLocaleString('ko-KR') + '원';
@@ -424,6 +462,7 @@
     row.append(bubble);
     log.append(row);
     scrollDown();
+    return row;
   }
 
   // Optional image enhancement: fetch a photo from an existing owner-operated detail page.
@@ -580,11 +619,12 @@
   }
 
   function renderSearchItem(data) {
-    const wrap = cardsBlock();
     if (!data.results || data.results.length === 0) {
-      systemNote('검색 결과가 없어요. 아직 확인되지 않은 정보예요.');
+      turnHadEmptySearch = true;
       return;
     }
+    markFound();
+    const wrap = cardsBlock();
     for (const item of data.results) {
       const card = itemCard(item);
       wrap.append(card);
@@ -594,6 +634,7 @@
   }
 
   function renderFindAlternative(data) {
+    markFound();
     const wrap = cardsBlock();
     // 같은 턴에서 searchItem이 이미 이 원래 제품 카드를 보여줬다면, 새로 만들지 않고
     // 그 카드를 여기로 옮겨서 대체템 묶음 바로 위에 한 번만 보이게 한다.
@@ -606,9 +647,8 @@
       wrap.append(card);
       turnOriginalCards.set(data.original.id, card);
     }
-    if (data.alternatives.length === 0) {
-      systemNote('예산 안의 대체템을 아직 찾지 못했어요.');
-    } else {
+    // 대체템이 없으면 원래 제품 카드만 둔다 — 못 찾았다는 말은 덕메 답변이 한 번만 한다.
+    if (data.alternatives.length > 0) {
       const label = document.createElement('div');
       label.className = 'card-group-label';
       label.textContent = '대체템';
@@ -619,6 +659,11 @@
   }
 
   function renderPlanRoute(data) {
+    if (!data.course || data.course.length === 0) {
+      turnHadEmptySearch = true;
+      return;
+    }
+    markFound();
     const wrap = cardsBlock();
     const box = document.createElement('div');
     box.className = 'timeline';
@@ -761,7 +806,9 @@
   // findPlaces는 지역별 개수를 모델이 답변 문장에서 그대로 말해주니(카드 UI가 따로 없음),
   // 여기서 또 systemNote로 같은 내용을 띄우면 "두 번 나오는" 것처럼 보여서 화면에는 아무것도 안 띄운다.
   function renderFindPlaces(data) {
-    // no-op: 데이터는 모델의 답변 텍스트로 이미 전달됨.
+    // 카드는 없지만, 결과가 있었는지는 턴 끝 "확인되지 않은 정보" 안내 판단에 쓴다.
+    if (data && data.regions && data.regions.length > 0) markFound();
+    else turnHadEmptySearch = true;
   }
 
   const handlers = {
@@ -805,6 +852,7 @@
       scrollDown();
     }
     if (event.type === 'message.end') {
+      turnAgentText += event.text || '';
       rawText.set(event.id, event.text);
       rowBubble(event.id, 'agent').innerHTML = formatInline(event.text);
       const markers = event.markers || [];
@@ -828,7 +876,9 @@
     // 메시지가 끝나야 마커가 오는 message.end보다 먼저, "찾는 중"이 실시간으로 보이게.
     if (event.type === 'state' && event.activity === 'tool') {
       setExpression('think');
+      if (!event.tools || event.tools.some((t) => SEARCH_TOOLS.includes(t))) showSearchingNote();
     }
+    if (event.type === 'state' && event.status === 'idle') finishTurnSearch();
   };
 
   async function sendText(text) {
@@ -874,6 +924,7 @@
     miniAvatars.clear();
     currentTurnInputId = null;
     turnOriginalCards = new Map();
+    resetTurnSearch();
     rawText.clear();
     resetExpression();
     systemNote('새 대화를 시작했어요. (기억은 유지돼요)');
@@ -888,6 +939,7 @@
     miniAvatars.clear();
     currentTurnInputId = null;
     turnOriginalCards = new Map();
+    resetTurnSearch();
     rawText.clear();
     resetExpression();
     purchaseCounterEl.classList.remove('show');
