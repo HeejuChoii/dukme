@@ -668,6 +668,34 @@
   function formatInline(text) {
     return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
   }
+  // 말풍선에 넣기 전 정리: 앞뒤 공백·줄바꿈 제거(마커가 빠진 자리에 남는 줄바꿈 포함), 줄 끝 공백 제거,
+  // 빈 줄이 여러 개 이어지면 하나로. 스트리밍 중에도 매번 전체 원문에서 다시 정리하므로
+  // 조각 끝의 줄바꿈이 잠깐 빈 줄로 보이지 않고, 다음 조각이 오면 제자리에 다시 나타난다.
+  function tidyText(text) {
+    return String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t\u00a0]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  // 내용이 있을 때만 말풍선을 만들고, 정리 후 비면 이미 만든 말풍선도 지운다.
+  // 스트리밍 조각에 표정 마커(:happy: 등)가 섞여 와도 말풍선에는 보이지 않게 뺀다(표정은 message.end의 markers로).
+  const MARKER_TEXT = /:(?:happy|think|cheer|sorry):/g;
+  function setBubbleText(id, cls, text) {
+    const clean = tidyText(cls === 'agent' ? String(text || '').replace(MARKER_TEXT, '') : text);
+    if (!clean) {
+      const existing = bubbles.get(id);
+      if (existing) {
+        existing.parentElement.remove();
+        bubbles.delete(id);
+        miniAvatars.delete(id);
+      }
+      return null;
+    }
+    const bubble = rowBubble(id, cls);
+    bubble.innerHTML = formatInline(clean);
+    return bubble;
+  }
   const rawText = new Map(); // message id -> accumulated raw text (스트리밍 중에도 다시 이스케이프/볼드 처리하려고 따로 들고 있음)
 
   function rowBubble(id, cls) {
@@ -1127,19 +1155,19 @@
     // source === 'agent'
     if (event.type === 'input' && event.kind === 'user') {
       ensureTurn(event.id);
-      rowBubble(event.id, 'you').innerHTML = formatInline(event.text);
+      setBubbleText(event.id, 'you', event.text);
       scrollDown();
     }
     if (event.type === 'message.delta') {
       const raw = (rawText.get(event.id) || '') + event.text;
       rawText.set(event.id, raw);
-      rowBubble(event.id, 'agent').innerHTML = formatInline(raw);
+      setBubbleText(event.id, 'agent', raw);
       scrollDown();
     }
     if (event.type === 'message.end') {
       turnAgentText += event.text || '';
       rawText.set(event.id, event.text);
-      rowBubble(event.id, 'agent').innerHTML = formatInline(event.text);
+      setBubbleText(event.id, 'agent', event.text); // 최종 텍스트 기준으로 다시 정리 (비면 말풍선 없음)
       const markers = event.markers || [];
       const resolved = markers.includes('cheer') ? 'cheer'
         : markers.includes('happy') ? 'happy'
