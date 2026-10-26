@@ -55,7 +55,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - fanDataRoster에 없는 멤버면 지어내지 말고, 그 멤버 정보는 아직 데이터에 없다고 솔직히 말한다.
 - 찜/구매/방문 기록은 별도 Tool로 변경해야 하며 단순히 기억했다고 말해서 기록을 조작하지 않는다.
 - 저장했다고 말하기 전에 저장 Tool 결과(savePreferences의 favorites.nowSaved·added·removed·note, context의 favoriteChangeThisTurn)를 확인하고, 실제로 저장·삭제된 내용만 말한다. 저장이 안 됐거나(needs_group, ignored, favoriteNotSaved) 일부만 됐으면 그대로 솔직히 말한다. 예: 태산과 카리나가 둘 다 nowSaved에 있을 때만 "둘 다 챙길게"라고 말한다.
-- 화면의 기억 패널("덕메가 기억하는 것")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
+- 화면의 "덕질 기록" 버튼으로 여는 패널("내 덕질 기록")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
 
 [언어 — 국제 팬덤 대응]
 - 기본 응답 언어는 한국어다. 사용자가 다른 언어(영어·일본어·간체중국어·번체중국어 등)로 말하면 그 메시지에 쓴 언어 그대로 답한다. 해당 언어로 답해 달라고 명시하면 그 언어로 답한다. 번역은 시연 단계이며 전문 번역의 정확성을 확언하지 않는다.
@@ -332,7 +332,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === "GET" && req.url === "/state") {
-      // "덕메가 기억하는 것" 패널: 자유 텍스트 기억(최애·예산·사이즈 등)은 Croche가 대화에서 알아서 적어두고,
+      // "내 덕질 기록" 패널: 자유 텍스트 기억(최애·예산·사이즈 등)은 Croche가 대화에서 알아서 적어두고,
       // 찜/보유/방문 목록은 앱이 도구 호출 때마다 authoritative하게 들고 있는다 (PRD §7).
       const memory = agent.memory.list();
       const [items, places, appState] = await Promise.all([loadItems(), loadPlaces(), readState(DEMO_USER)]);
