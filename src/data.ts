@@ -21,12 +21,19 @@ export interface Item {
   priceText: string | null;
   url: string; // 바로 구매 링크 (쇼핑몰 검색 결과 또는 실제 상품 페이지)
   shop: string | null; // "무신사", "네이버", "랄프로렌 공식몰" 등
+  imageUrl?: string | null; // 손민수위키 실제 제품 사진 (별도 전달 시 우선 사용)
   wikiUrl: string | null; // 손민수위키 상세 페이지. isSample이면 보통 null
   sourceUrl: string | null; // 최초 목격 출처 (유튜브 타임스탬프 등)
   features: string;
   accuracy: string | null; // "certain" 등 손민수위키 검수 상태
-  matchType: "exact" | "similar" | "sample"; // exact=원래 제품, similar=정품 미확인 유사 제품, sample=시연용 예시
+  matchType: "exact" | "similar" | "sample" | "source_only"; // exact=원래 제품, similar=정품 미확인 유사 제품, sample=시연용 예시
   soldOut: boolean;
+  stockStatus?: "unknown" | "in_stock" | "sold_out"; // 팬 계정 데이터는 재고 미확인
+  fanSourceUrls?: string[]; // 검수 레코드와 연결되는 X 원본 추가 링크
+  workbenchIds?: string[]; // 원본 후보 작업대 행(중복 병합 포함)
+  priceProvenance?: string; // 가격 중 일부는 작업대 기록
+  workbenchId?: string; // HTML 작업대 원본 행 식별자
+  workbenchStock?: string; // 작업대 기록 당시의 판매 여부 (실시간 재고 아님)
   isOriginal: boolean;
   alternativeOf: string | null;
   isSample: boolean; // true면 손민수위키 검수 데이터가 아니라 시연용 예시 대체템
@@ -57,6 +64,7 @@ export interface Place {
   naverMapUrl: string;
   googleMapUrl: string | null;
   recreeUrl: string | null;
+  imageUrl?: string | null; // reCree 장소 사진 (별도 전달 시 우선 사용)
   sourceUrl: string | null;
   isFandomSpot: boolean;
 }

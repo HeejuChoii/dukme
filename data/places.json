@@ -10100,34 +10100,6 @@
     "isFandomSpot": true
   },
   {
-    "id": "place_370",
-    "name": "종합운동장역",
-    "area": "연제구",
-    "region": "부산광역시 연제구",
-    "address": "Busan, South Korea",
-    "type": "Station",
-    "visits": [
-      {
-        "group": "BTS",
-        "member": "단체",
-        "date": null,
-        "context": "Photoshoot, Fan Spot"
-      }
-    ],
-    "openHours": null,
-    "note": "제이홉이 콘서트 당일 들른 부산 밀면 맛집",
-    "mustTry": "제이홉이 앉은 것과 같은 의자 앉아서 먹기",
-    "context": "부산 해운대구 우동에 위치한 밀면 직영점. 2026년 6월 13일 BTS 월드투어 'ARIRANG' 부산 콘서트 당일, 제이홉이 방문한 밀면집",
-    "tip": "매장 내 포토존 있음 — 멤버와 같은 의자에서 인증샷 가능",
-    "lat": 35.191137,
-    "lng": 129.067864,
-    "naverMapUrl": "https://naver.me/FAR5Igdo",
-    "googleMapUrl": "https://www.google.com/maps/search/?api=1&query=%EC%A2%85%ED%95%A9%EC%9A%B4%EB%8F%99%EC%9E%A5%EC%97%AD&query_place_id=ChIJKTlDV6aUaDURDa-Kfs-hDiE",
-    "recreeUrl": null,
-    "sourceUrl": null,
-    "isFandomSpot": true
-  },
-  {
     "id": "place_371",
     "name": "언양불고기",
     "area": "수영구",

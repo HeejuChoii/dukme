@@ -11,15 +11,28 @@ import { randomUUID } from "node:crypto";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stateDir = path.join(here, "..", "app-state");
 
+export interface FanPreferences {
+  favoriteGroup?: string;
+  favoriteMember?: string;
+  budget?: number;
+  colors?: string[];
+  sizeTop?: string;
+  sizeBottom?: string;
+  sizeShoes?: string;
+  shoppingMode?: "shopping" | "travel" | "both";
+  language?: "ko" | "en" | "ja" | "zh-TW"; // 사용자가 선택한 응답 언어
+}
+
 export interface AppState {
   wishlist: string[]; // item ids
   owned: string[]; // item ids
   visitedPlaces: string[]; // place ids
+  preferences: FanPreferences;
   purchaseClicks: number; // "사러 가기" 클릭 수 (데모용 카운터)
 }
 
 function emptyState(): AppState {
-  return { wishlist: [], owned: [], visitedPlaces: [], purchaseClicks: 0 };
+  return { wishlist: [], owned: [], visitedPlaces: [], preferences: {}, purchaseClicks: 0 };
 }
 
 function stateFile(user: string): string {
@@ -35,6 +48,7 @@ export async function readState(user: string): Promise<AppState> {
       owned: parsed.owned ?? [],
       visitedPlaces: parsed.visitedPlaces ?? [],
       purchaseClicks: parsed.purchaseClicks ?? 0,
+      preferences: parsed.preferences ?? {},
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyState();

@@ -198,6 +198,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
         lng: place.lng,
         naverMapUrl: place.naverMapUrl,
         recreeUrl: place.recreeUrl,
+        imageUrl: place.imageUrl ?? null,
       });
     });
   }

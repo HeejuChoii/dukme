@@ -136,6 +136,16 @@
     border: 1px solid var(--border); border-radius: var(--radius-card); padding: .65rem .8rem; display: flex; gap: .6rem; align-items: center;
     background: var(--bg); box-shadow: var(--shadow-card);
   }
+  /* Preview image: retain the existing teal card style, only upgrade verified-source cards. */
+  .item-card.has-photo { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; }
+  .item-card.has-photo .item-thumb { width: 86px; height: 86px; }
+  .item-card.has-photo .item-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .item-card.has-photo .item-actions button { flex: 0 1 auto; }
+  .item-thumb.photo-thumb { overflow: hidden; position: relative; }
+  .media-thumb-img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .media-preview-label { font-size: .62rem; color: var(--muted); }
+  .stop.has-photo .place-photo { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; flex: 0 0 72px; background: var(--accent-soft); }
+  .stop.has-photo .body { min-width: 0; flex: 1; }
   .item-thumb {
     width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: var(--accent-dark);
@@ -416,6 +426,27 @@
     scrollDown();
   }
 
+  // Optional image enhancement: fetch a photo from an existing owner-operated detail page.
+  // No random stock photos. If missing, slow, or blocked, original emoji/layout remain.
+  async function addSourcePhoto(type, id, onImage) {
+    if (!id) return;
+    try {
+      const response = await fetch(`/media-preview?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+      if (!response.ok) return;
+      const result = await response.json();
+      if (!result.imageUrl || !/^https:\/\//i.test(result.imageUrl)) return;
+      const image = document.createElement('img');
+      image.className = 'media-thumb-img';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.alt = type === 'item' ? '손민수위키에 등록된 상품 이미지' : 'reCree에 등록된 장소 이미지';
+      image.referrerPolicy = 'no-referrer';
+      image.addEventListener('error', () => image.remove(), { once: true });
+      image.addEventListener('load', () => onImage(image, result.kind), { once: true });
+      image.src = result.imageUrl;
+    } catch { /* preserve original card on network or storage failure */ }
+  }
+
   function itemCard(item) {
     const card = document.createElement('div');
     card.className = 'item-card';
@@ -428,8 +459,8 @@
     title.className = 'title';
     title.textContent = `${item.brand} · ${item.name}`;
     const badge = document.createElement('span');
-    badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : item.matchType === 'similar' ? 'similar' : 'alt');
-    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : item.matchType === 'similar' ? '유사 제품(팬 검수)' : '대체템';
+    badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : item.matchType === 'similar' ? 'similar' : item.matchType === 'source_only' ? 'sample' : 'alt');
+    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : item.matchType === 'similar' ? '유사 제품(팬 검수)' : item.matchType === 'source_only' ? 'X 팬 계정 출처 · 미검증' : '대체템';
     title.append(badge);
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -438,6 +469,9 @@
     price.className = 'price';
     // 일부 아이템은 원화가 아니라 priceText($83, ¥1490 등)로만 가격이 있다.
     price.textContent = typeof item.price === 'number' ? won(item.price) : (item.priceText || '가격 미확인');
+    if (item.matchType === 'source_only') price.textContent += ' · 참고 가격/재고 미검증';
+    else if (item.priceProvenance === 'workbench_unverified') price.textContent += ' · 작업대 참고 가격';
+    else if (item.stockStatus === 'unknown') price.textContent += ' · 재고 미확인';
     if (typeof item.savingsVsOriginal === 'number' && item.savingsVsOriginal > 0) {
       price.textContent += ` (원래 제품보다 ${won(item.savingsVsOriginal)} 저렴)`;
     }
@@ -450,7 +484,7 @@
       buyBtn.className = 'buy-btn';
       buyBtn.textContent = '바로 구매';
       buyBtn.onclick = () => recordPurchaseClick(item.url);
-      actions.append(buyBtn);
+      if (item.url) actions.append(buyBtn);
     } else {
       const wishBtn = document.createElement('button');
       wishBtn.className = 'wish-btn';
@@ -464,13 +498,39 @@
         wikiBtn.onclick = () => window.open(item.wikiUrl, '_blank', 'noopener');
         actions.append(wikiBtn);
       }
-      const buyLink = document.createElement('button');
-      buyLink.className = 'link-btn';
-      buyLink.textContent = '바로 구매';
-      buyLink.onclick = () => recordPurchaseClick(item.url);
-      actions.append(buyLink);
+      const fanSourceUrl = /^https:\/\/(x\.com|twitter\.com)\//i.test(item.sourceUrl || '') ? item.sourceUrl : (item.fanSourceUrls || []).find(u => /^https:\/\/(x\.com|twitter\.com)\//i.test(u));
+      if (fanSourceUrl) {
+        const sourceBtn = document.createElement('button');
+        sourceBtn.className = 'link-btn';
+        sourceBtn.textContent = 'X 원본에서 보기';
+        sourceBtn.onclick = () => window.open(fanSourceUrl, '_blank', 'noopener,noreferrer');
+        actions.append(sourceBtn);
+      }
+      // 원본 X 글은 구매 페이지가 아니다. 실제 구매 URL이 있는 경우에만 표시한다.
+      if (item.url && /^https:\/\//i.test(item.url) && !/^https:\/\/(x\.com|twitter\.com)\//i.test(item.url)) {
+        const buyLink = document.createElement('button');
+        buyLink.className = 'link-btn';
+        buyLink.textContent = item.matchType === 'source_only' ? '판매처 확인하기' : '바로 구매';
+        buyLink.onclick = () => recordPurchaseClick(item.url);
+        actions.append(buyLink);
+      }
     }
     card.append(thumb, info, actions);
+    if (item.wikiUrl || item.imageUrl) {
+      addSourcePhoto('item', item.id, (image, previewKind) => {
+        if (!card.isConnected) return;
+        thumb.textContent = '';
+        thumb.append(image);
+        thumb.classList.add('photo-thumb');
+        card.classList.add('has-photo');
+        if (previewKind === 'share_preview') {
+          const label = document.createElement('div');
+          label.className = 'media-preview-label';
+          label.textContent = '위키 공유 미리보기';
+          info.append(label);
+        }
+      });
+    }
     return card;
   }
 
@@ -490,7 +550,7 @@
           '<!doctype html><meta charset="utf-8"><title>이동 중…</title>' +
           '<body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;' +
           'font:16px -apple-system,sans-serif;color:#02a5c8;background:#fff;">' +
-          '손민수위키 제휴 링크로 이동 중…<script>window.opener=null<\/script></body>'
+          '외부 판매처로 이동 중…<script>window.opener=null<\/script></body>'
         );
       }
     }
@@ -588,6 +648,15 @@
         time.textContent = stop.time;
         const body = document.createElement('div');
         body.className = 'body';
+        if (stop.recreeUrl || stop.imageUrl) {
+          addSourcePhoto('place', stop.placeId, (image, previewKind) => {
+            if (!row.isConnected) return;
+            image.className = 'place-photo';
+            image.alt = previewKind === 'share_preview' ? `${stop.name} 상세 페이지 미리보기` : `${stop.name} 장소 사진`;
+            row.insertBefore(image, body);
+            row.classList.add('has-photo');
+          });
+        }
         const name = document.createElement('div');
         name.className = 'name';
         const tag = stop.isFavoriteMemberVisit ? ' · 최애가 다녀간 곳'
@@ -808,6 +877,7 @@
     rawText.clear();
     resetExpression();
     systemNote('새 대화를 시작했어요. (기억은 유지돼요)');
+    await refreshMemoryPanel();
   };
 
   document.getElementById('btn-reset-memory').onclick = async () => {
@@ -855,8 +925,26 @@
     if (data.purchaseClicks > 0) showPurchaseCounter(data.purchaseClicks);
     const memoryList = document.getElementById('memory-list');
     memoryList.innerHTML = '';
+    if (data.preferences && Object.keys(data.preferences).length) {
+      const profile = document.createElement('div');
+      profile.className = 'section';
+      const p = data.preferences;
+      const tags = [p.favoriteGroup && `최애 그룹 ${p.favoriteGroup}`, p.favoriteMember && `최애 ${p.favoriteMember}`,
+        typeof p.budget === 'number' && `예산 ${won(p.budget)}`, (p.colors || []).length && `선호 색 ${p.colors.join(', ')}`,
+        p.sizeTop && `상의 ${p.sizeTop}`, p.sizeBottom && `하의 ${p.sizeBottom}`, p.sizeShoes && `신발 ${p.sizeShoes}`,
+        p.shoppingMode && `모드 ${p.shoppingMode === 'travel' ? '성지 중심' : p.shoppingMode === 'shopping' ? '쇼핑 중심' : '쇼핑·성지'}`,
+        p.language && `언어 ${p.language}`].filter(Boolean);
+      profile.textContent = '🧩 내 취향: ' + tags.join(' · ');
+      memoryList.append(profile);
+    }
     if (!data.memory || data.memory.length === 0) {
-      memoryList.innerHTML = '<div class="empty">아직 기억한 게 없어요.</div>';
+      // Croche 자연어 기억이 비어 있어도 앱의 구조화된 최애·예산은 지우지 않는다.
+      if (!data.preferences || Object.keys(data.preferences).length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '아직 기억한 게 없어요.';
+        memoryList.append(empty);
+      }
     } else {
       const ul = document.createElement('ul');
       for (const m of data.memory) ul.append(memRow(m.text, () => deleteMemory(m.id)));
