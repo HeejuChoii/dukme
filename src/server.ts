@@ -12,8 +12,8 @@ import { FileStorage } from "@h1r-ai/croche/node";
 import { toolDeclarations, toolHandlers } from "./tools/index.js";
 import { onCard } from "./bus.js";
 import { resetState, readState, updateState } from "./state.js";
-import { loadAliases, loadItems, loadPlaces } from "./data.js";
-import { getMediaPreview } from "./mediaPreview.js";
+import { loadAliases, loadItems, loadPlaces, type Item } from "./data.js";
+import { diagnoseItemPreview, getMediaPreview } from "./mediaPreview.js";
 import { buildPersonalContext } from "./personalContext.js";
 import { extractExplicitPreferences } from "./explicitPreferences.js";
 import { buildFavoriteCatalog, detectFavoriteInText, mergeFavorite, rosterSummary } from "./favorite.js";
@@ -185,6 +185,12 @@ const server = createServer(async (req, res) => {
         ? (await loadItems()).find((i) => i.id === id)
         : (await loadPlaces()).find((p) => p.id === id);
       if (!source) { res.writeHead(404).end(); return; }
+      // 사진이 안 뜰 때 원인 확인용(캐시 없이 손민수위키 페이지를 다시 읽어 단계별 결과를 보여 준다).
+      if (type === "item" && search.get("debug") === "1") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" })
+          .end(JSON.stringify(await diagnoseItemPreview(source as Item), null, 2));
+        return;
+      }
       const preview = await getMediaPreview(type, id, source);
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "private, max-age=900" })
         .end(JSON.stringify(preview ?? { imageUrl: null }));

@@ -144,6 +144,23 @@
   .item-thumb.photo-thumb { overflow: hidden; position: relative; }
   .media-thumb-img { width: 100%; height: 100%; display: block; object-fit: cover; }
   .media-preview-label { font-size: .62rem; color: var(--muted); }
+  /* 손민수위키 공유 카드 모양: 남색 상단(출처·브랜드·제품명 + 제품 사진), 아래에 배지·가격·버튼.
+     제품 사진을 실제로 받아 왔을 때만 이 모양으로 바뀌고, 없으면 아이콘 레이아웃 그대로. */
+  .item-card.wiki-card { display: block; padding: 0; overflow: hidden; }
+  .wiki-head { display: flex; gap: .75rem; align-items: center; padding: .8rem .9rem; background: #1b2557; color: #fff; }
+  .wiki-head .wiki-text { flex: 1; min-width: 0; }
+  .wiki-head .wiki-src { font-size: .68rem; letter-spacing: .01em; color: rgba(255,255,255,.72); }
+  .wiki-head .wiki-brand { font-size: .78rem; color: rgba(255,255,255,.88); margin-top: .25rem; }
+  .wiki-head .wiki-name { font-size: 1.02rem; font-weight: 700; line-height: 1.3; margin-top: .1rem; overflow-wrap: anywhere; }
+  .wiki-head .wiki-photo { width: 92px; height: 92px; flex: 0 0 92px; border-radius: 12px; background: #fff; overflow: hidden; }
+  .wiki-head .wiki-photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .wiki-body { padding: .6rem .9rem .75rem; display: flex; flex-direction: column; gap: .45rem; }
+  .wiki-body .badge { margin-left: 0; align-self: flex-start; }
+  .wiki-body .meta { font-size: .78rem; color: var(--muted); }
+  .wiki-body .price { font-weight: 700; font-size: .95rem; color: var(--text); }
+  .wiki-body .item-actions { flex-direction: row; flex-wrap: wrap; }
+  .wiki-body .item-actions button { flex: 0 1 auto; }
+  @media (max-width: 420px) { .wiki-head .wiki-photo { width: 76px; height: 76px; flex-basis: 76px; } }
   .stop.has-photo .place-photo { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; flex: 0 0 72px; background: var(--accent-soft); }
   .stop.has-photo .body { min-width: 0; flex: 1; }
   .item-thumb {
@@ -210,6 +227,8 @@
     display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
     border: 2px solid #fff; box-shadow: 0 1px 4px rgba(2,96,118,.35);
   }
+  /* OSM 기본 타일의 진한 색을 눌러 준다. 타일 레이어에만 걸어서 마커·경로선은 청록색 그대로. */
+  .route-map .leaflet-tile-pane { filter: grayscale(0.7) brightness(1.05) contrast(0.92); }
   /* 첫 장소(가장 우선인 곳, 보통 최애가 다녀간 곳)는 진한 청록으로 출발점 표시 */
   .route-map-pin.start { background: var(--accent-dark); }
 
@@ -320,7 +339,7 @@
       'counter.purchase': '구매 연결 {n}건', 'toast.affiliate': '손민수위키 제휴 링크로 이동해요',
       'group.alternatives': '대체템',
       'route.title': '{area} 코스', 'route.days': '{n}일', 'route.day': '{n}일차', 'route.empty': '짤 수 있는 코스가 없어요.',
-      'tag.favMember': '최애가 다녀간 곳', 'tag.favGroup': '같은 그룹이 다녀간 곳', 'tag.fandom': '팬덤 성지', 'tag.brand': '착용 브랜드 매장',
+      'tag.visitedBy': '{name}{josa} 다녀간 곳', 'tag.visitedByLatin': '{name} 방문', 'tag.favMember': '최애가 다녀간 곳', 'tag.favGroup': '같은 그룹이 다녀간 곳', 'tag.fandom': '팬덤 성지', 'tag.brand': '착용 브랜드 매장',
       'route.visit': '방문', 'route.mustTry': '추천 메뉴', 'btn.naverMap': '네이버지도', 'btn.recree': 'reCree에서 보기',
       'wish.already': '이미 위시리스트에 있어요: {name}', 'wish.added': '위시리스트에 추가했어요: {name}',
       'owned.already': '이미 보유 중이에요: {name}', 'owned.moved': '보유 아이템으로 옮겼어요: {name} 🎉',
@@ -353,7 +372,7 @@
       'counter.purchase': 'Purchase links: {n}', 'toast.affiliate': 'Opening a Sonminsoo Wiki partner link',
       'group.alternatives': 'Alternatives',
       'route.title': '{area} route', 'route.days': '{n} days', 'route.day': 'Day {n}', 'route.empty': "Couldn't build a route.",
-      'tag.favMember': 'Your bias visited', 'tag.favGroup': 'Same group visited', 'tag.fandom': 'Fan spot', 'tag.brand': 'Store of a worn brand',
+      'tag.visitedBy': 'Visited by {name}', 'tag.favMember': 'Your bias visited', 'tag.favGroup': 'Same group visited', 'tag.fandom': 'Fan spot', 'tag.brand': 'Store of a worn brand',
       'route.visit': 'Visited by', 'route.mustTry': 'Must try', 'btn.naverMap': 'Naver Map', 'btn.recree': 'View on reCree',
       'wish.already': 'Already in your wishlist: {name}', 'wish.added': 'Added to your wishlist: {name}',
       'owned.already': 'Already owned: {name}', 'owned.moved': 'Moved to owned items: {name} 🎉',
@@ -386,7 +405,7 @@
       'counter.purchase': '購入リンク {n}件', 'toast.affiliate': 'ソンミンスWikiの提携リンクへ移動します',
       'group.alternatives': '代わりアイテム',
       'route.title': '{area} コース', 'route.days': '{n}日間', 'route.day': '{n}日目', 'route.empty': 'コースを作れませんでした。',
-      'tag.favMember': '推しが行った場所', 'tag.favGroup': '同じグループが行った場所', 'tag.fandom': 'ファンの聖地', 'tag.brand': '着用ブランドの店舗',
+      'tag.visitedBy': '{name}が訪れた場所', 'tag.favMember': '推しが行った場所', 'tag.favGroup': '同じグループが行った場所', 'tag.fandom': 'ファンの聖地', 'tag.brand': '着用ブランドの店舗',
       'route.visit': '訪問', 'route.mustTry': 'おすすめ', 'btn.naverMap': 'NAVERマップ', 'btn.recree': 'reCreeで見る',
       'wish.already': 'もうお気に入りに入っています: {name}', 'wish.added': 'お気に入りに追加しました: {name}',
       'owned.already': 'もう持っています: {name}', 'owned.moved': '持っているアイテムに移しました: {name} 🎉',
@@ -419,7 +438,7 @@
       'counter.purchase': '购买链接 {n}次', 'toast.affiliate': '正在打开孙敏秀Wiki合作链接',
       'group.alternatives': '平替',
       'route.title': '{area} 路线', 'route.days': '{n}天', 'route.day': '第{n}天', 'route.empty': '没能排出路线。',
-      'tag.favMember': '本命去过的地方', 'tag.favGroup': '同团成员去过的地方', 'tag.fandom': '粉丝圣地', 'tag.brand': '同款品牌门店',
+      'tag.visitedBy': '{name}去过的地方', 'tag.favMember': '本命去过的地方', 'tag.favGroup': '同团成员去过的地方', 'tag.fandom': '粉丝圣地', 'tag.brand': '同款品牌门店',
       'route.visit': '到访', 'route.mustTry': '推荐', 'btn.naverMap': 'Naver地图', 'btn.recree': '在reCree查看',
       'wish.already': '已经在心愿单里了: {name}', 'wish.added': '已加入心愿单: {name}',
       'owned.already': '已经拥有: {name}', 'owned.moved': '已移到已拥有: {name} 🎉',
@@ -452,7 +471,7 @@
       'counter.purchase': '購買連結 {n}次', 'toast.affiliate': '正在開啟孫敏秀Wiki合作連結',
       'group.alternatives': '平替',
       'route.title': '{area} 路線', 'route.days': '{n}天', 'route.day': '第{n}天', 'route.empty': '沒能排出路線。',
-      'tag.favMember': '本命去過的地方', 'tag.favGroup': '同團成員去過的地方', 'tag.fandom': '粉絲聖地', 'tag.brand': '同款品牌門市',
+      'tag.visitedBy': '{name}去過的地方', 'tag.favMember': '本命去過的地方', 'tag.favGroup': '同團成員去過的地方', 'tag.fandom': '粉絲聖地', 'tag.brand': '同款品牌門市',
       'route.visit': '到訪', 'route.mustTry': '推薦', 'btn.naverMap': 'Naver地圖', 'btn.recree': '在reCree查看',
       'wish.already': '已經在願望清單裡了: {name}', 'wish.added': '已加入願望清單: {name}',
       'owned.already': '已經擁有: {name}', 'owned.moved': '已移到已擁有: {name} 🎉',
@@ -474,6 +493,18 @@
   const UNVERIFIED_IN_REPLY = /확인되지 않은|not (?:been )?(?:confirmed|verified)|unverified|確認されていない|未確認|未确认|尚未确认/i;
 
   let uiLang = 'ko';
+
+  // "사쿠야가 다녀간 곳" / "태산이 다녀간 곳": 한국어는 aliases의 한글 이름에 받침 따라 이/가를 붙이고,
+  // 한글 이름이 없으면 "BOYNEXTDOOR 방문"처럼 조사 없이. 다른 언어는 데이터 이름 그대로(번역하지 않음).
+  function subjectJosa(word) {
+    const code = word.charCodeAt(word.length - 1) - 0xac00;
+    return code >= 0 && code <= 11171 && code % 28 !== 0 ? '이' : '가';
+  }
+  function visitedByLabel(label) {
+    if (uiLang !== 'ko') return t('tag.visitedBy', { name: label.name });
+    const ko = label.nameKo && /[가-힣]$/.test(label.nameKo) ? label.nameKo : null;
+    return ko ? t('tag.visitedBy', { name: ko, josa: subjectJosa(ko) }) : t('tag.visitedByLatin', { name: label.nameKo || label.name });
+  }
   function t(key, vars) {
     let text = (I18N[uiLang] && I18N[uiLang][key]) ?? I18N.ko[key] ?? key;
     if (vars) for (const [k, v] of Object.entries(vars)) text = text.split(`{${k}}`).join(String(v));
@@ -694,7 +725,8 @@
       if (!result.imageUrl || !/^https:\/\//i.test(result.imageUrl)) return;
       const image = document.createElement('img');
       image.className = 'media-thumb-img';
-      image.loading = 'lazy';
+      // loading='lazy'를 쓰면 안 된다: 이 img는 load가 끝난 뒤에야 카드에 붙는데, 화면에 없는 lazy 이미지는
+      // 브라우저가 아예 받지 않아서 load가 영영 안 오고 카드가 계속 아이콘으로 남는다.
       image.decoding = 'async';
       image.alt = type === 'item' ? t('alt.item') : t('alt.place');
       image.referrerPolicy = 'no-referrer';
@@ -774,22 +806,56 @@
       }
     }
     card.append(thumb, info, actions);
+    // 제품 사진만 받는다(서버가 og:image 같은 멤버 합성 이미지는 돌려주지 않음). 못 받으면 아이콘 그대로.
     if (item.wikiUrl || item.imageUrl) {
       addSourcePhoto('item', item.id, (image, previewKind) => {
-        if (!card.isConnected) return;
+        if (!card.isConnected || previewKind !== 'photo') return;
+        if (item.wikiUrl) {
+          toWikiCard(card, item, image, { badge, meta, price, actions });
+          return;
+        }
         thumb.textContent = '';
         thumb.append(image);
         thumb.classList.add('photo-thumb');
         card.classList.add('has-photo');
-        if (previewKind === 'share_preview') {
-          const label = document.createElement('div');
-          label.className = 'media-preview-label';
-          label.textContent = t('label.wikiPreview');
-          info.append(label);
-        }
       });
     }
     return card;
+  }
+
+  // 손민수위키 공유 카드 모양으로 다시 짠다. 배지·가격·버튼은 원래 만든 요소를 그대로 옮겨서
+  // 정품/유사/예시 구분과 버튼 동작이 아이콘 카드와 똑같다.
+  function toWikiCard(card, item, image, parts) {
+    const head = document.createElement('div');
+    head.className = 'wiki-head';
+    const text = document.createElement('div');
+    text.className = 'wiki-text';
+    const src = document.createElement('div');
+    src.className = 'wiki-src';
+    src.textContent = ['손민수위키', item.group, item.member !== '단체' ? item.member : ''].filter(Boolean).join(' · ');
+    const brand = document.createElement('div');
+    brand.className = 'wiki-brand';
+    brand.textContent = item.brand;
+    const name = document.createElement('div');
+    name.className = 'wiki-name';
+    name.textContent = item.name;
+    text.append(src, brand, name);
+    const photo = document.createElement('div');
+    photo.className = 'wiki-photo';
+    image.alt = t('alt.item');
+    photo.append(image);
+    head.append(text, photo);
+    const body = document.createElement('div');
+    body.className = 'wiki-body';
+    parts.meta.textContent = item.situation || '';
+    body.append(parts.badge);
+    if (item.situation) body.append(parts.meta);
+    body.append(parts.price, parts.actions);
+    card.textContent = '';
+    card.classList.remove('has-photo');
+    card.classList.add('wiki-card');
+    card.append(head, body);
+    scrollDown();
   }
 
   // "사러 가기": 실제 결제 연동은 범위 밖(PRD §12)이라 상품 url을 새 탭으로 열고, 구석 카운터만 올린다.
@@ -927,7 +993,8 @@
           : stop.isFavoriteGroupVisit ? 'tag.favGroup'
           : stop.isFandomSpot ? 'tag.fandom'
           : stop.isBrandMatch ? 'tag.brand' : '';
-        const tag = tagKey ? ' · ' + t(tagKey) : '';
+        const visitedBy = stop.visitLabel ? visitedByLabel(stop.visitLabel) : '';
+        const tag = visitedBy ? ' · ' + visitedBy : tagKey ? ' · ' + t(tagKey) : '';
         name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}${tag}`;
         const meta = document.createElement('div');
         meta.className = 'meta';
@@ -981,11 +1048,10 @@
     wrap.append(mapDiv);
     try {
       const map = L.map(mapId, { scrollWheelZoom: false });
-      // CARTO Voyager: OSM 기본 타일보다 차분해서 청록 마커·경로가 잘 보인다. 저작권 표기는 OSM + CARTO 둘 다.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      // OSM 기본 타일 (CARTO는 키 없이 쓰면 워터마크가 뜬다). 색은 CSS에서 타일 레이어에만 필터로 눌러 준다.
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
       const latlngs = withCoords.map((s) => [s.lat, s.lng]);
       withCoords.forEach((s, i) => {

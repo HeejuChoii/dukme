@@ -61,3 +61,36 @@ try {
 } finally {
   await resetState(user);
 }
+
+// 4) 코스 라벨용 실제 이름: 그룹은 한글 정식 이름, 최애 멤버는 데이터 이름, 멤버 기록 없으면 그룹
+{
+  const { koreanName } = await import('../src/tools/planRoute.js');
+  const { loadAliases } = await import('../src/data.js');
+  const aliases = await loadAliases();
+  assert.equal(koreanName('BOYNEXTDOOR', aliases.groups), '보이넥스트도어');
+  assert.equal(koreanName('NCT WISH', aliases.groups), '엔시티위시');
+  assert.equal(koreanName('SEVENTEEN', aliases.groups), '세븐틴');
+  assert.equal(koreanName('사쿠야', aliases.members), '사쿠야');
+  assert.equal(koreanName('KATSEYE', aliases.groups), null);
+
+  const user2 = 'test-route-labels';
+  const ctx2 = { user: user2, causedBy: [] } as unknown as Parameters<typeof planRouteHandler>[1];
+  try {
+    await resetState(user2);
+    const bnd = await planRouteHandler(inv('plan_route', { area: '양평군', group: 'BOYNEXTDOOR' }), ctx2) as any;
+    const bndStop = bnd.course.find((s: any) => s.visitLabel);
+    assert.deepEqual(bndStop.visitLabel, { kind: 'group', name: 'BOYNEXTDOOR', nameKo: '보이넥스트도어' });
+    const taesan = await planRouteHandler(inv('plan_route', { area: '양평군', member: '태산', group: 'BOYNEXTDOOR' }), ctx2) as any;
+    assert.equal(taesan.course.find((s: any) => s.visitLabel).visitLabel.name, '태산');
+    const sakuya = await planRouteHandler(inv('plan_route', { area: '종로구', member: '사쿠야', group: 'NCT WISH' }), ctx2) as any;
+    assert.deepEqual(sakuya.course[0].visitLabel, { kind: 'member', name: '사쿠야', nameKo: '사쿠야' });
+    // 리쿠 기록은 없고 같은 그룹(사쿠야) 기록만 있는 곳 → 그룹 이름
+    const riku = await planRouteHandler(inv('plan_route', { area: '종로구', member: '리쿠', group: 'NCT WISH' }), ctx2) as any;
+    const rikuStop = riku.course.find((s: any) => s.visitLabel);
+    assert.ok(rikuStop && !rikuStop.isFavoriteMemberVisit, '종로구에 리쿠 기록 없이 NCT WISH 기록만 있는 곳');
+    assert.deepEqual(rikuStop.visitLabel, { kind: 'group', name: 'NCT WISH', nameKo: '엔시티위시' });
+    console.log('PASS: 코스 라벨 실제 이름(그룹 한글 정식명, 최애 멤버, 멤버 기록 없으면 그룹)');
+  } finally {
+    await resetState(user2);
+  }
+}

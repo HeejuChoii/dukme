@@ -16,6 +16,24 @@ function mustTryLabel(place: Place): string {
 
 // KSPO DOME처럼 여러 그룹이 공유하는 다목적 장소는 "방문: 단체, 단체…"로 중복 표시되거나,
 // 특정 그룹 전용 성지인 양 최우선으로 뽑히면 안 된다 — 방문한 그룹 이름을 한 번씩만 모아 보여준다.
+// 코스 라벨("보이넥스트도어가 다녀간 곳")에 쓸 한글 이름. 데이터 이름이 한글이면 그대로, 아니면
+// aliases.json에서 같은 그룹·멤버의 한글 표기를 찾는다. 없으면 null(화면은 "BOYNEXTDOOR 방문"처럼 조사 없이).
+// 별명 목록은 애칭("위시")이 앞에 오기도 해서, 가장 긴 한글 표기(보통 정식 이름: 엔시티위시)를 고른다.
+const HANGUL = /[가-힣]/;
+const longestHangul = (list: string[]) =>
+  list.filter((a) => HANGUL.test(a)).sort((a, b) => b.length - a.length)[0] ?? null;
+export function koreanName(name: string, aliasMap: Record<string, string[]>): string | null {
+  if (HANGUL.test(name)) return name;
+  const own = longestHangul(aliasMap[name] ?? []);
+  if (own) return own;
+  for (const [key, list] of Object.entries(aliasMap)) {
+    if (norm(key) !== norm(name) && !list.some((a) => norm(a) === norm(name))) continue;
+    const found = longestHangul([key, ...list]);
+    if (found) return found;
+  }
+  return null;
+}
+
 function visitGroups(place: Place): string[] {
   return Array.from(new Set(place.visits.map((v) => v.group).filter(Boolean)));
 }
@@ -139,6 +157,17 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     favoriteGroupArg ||
     (favoriteMember ? norm(items.find((item) => fieldMatches(item.member, favoriteMember, aliases.members))?.group) : "");
 
+  // 라벨용 실제 이름: 최애 멤버는 데이터의 정식 이름, 그룹은 그 장소 방문 기록에 적힌 그룹명.
+  const favoriteMemberName = favoriteMember
+    ? items.find((item) => item.member !== "단체" && fieldMatches(item.member, favoriteMember, aliases.members))?.member ?? null
+    : null;
+  const visitLabel = (place: Place, kind: "member" | "group") => {
+    const name = kind === "member"
+      ? favoriteMemberName
+      : place.visits.find((v) => fieldMatches(v.group, favoriteGroup, aliases.groups))?.group ?? null;
+    return name ? { kind, name, nameKo: koreanName(name, kind === "member" ? aliases.members : aliases.groups) } : null;
+  };
+
   const groupVisitMatch = (place: Place): boolean =>
     Boolean(favoriteGroup) && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups));
   const memberVisitMatch = (place: Place): boolean =>
@@ -193,6 +222,10 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
         isBrandMatch: isBrandMatch(place),
         isFavoriteMemberVisit: !isSharedVenue(place) && memberVisitMatch(place),
         isFavoriteGroupVisit: !isSharedVenue(place) && !memberVisitMatch(place) && groupVisitMatch(place),
+        // 멤버 기록이 있으면 멤버 이름, 멤버 기록 없이 그룹 기록만 있으면 그룹 이름.
+        visitLabel: isSharedVenue(place) ? null
+          : memberVisitMatch(place) && favoriteMemberName ? visitLabel(place, "member")
+          : groupVisitMatch(place) ? visitLabel(place, "group") : null,
         mustTry: place.mustTry,
         mustTryLabel: mustTryLabel(place),
         tip: place.tip,
