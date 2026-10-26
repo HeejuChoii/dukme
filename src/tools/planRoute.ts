@@ -4,6 +4,7 @@ import { readState } from "../state.js";
 import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
 import { placeMatchesArea } from "../geo.js";
+import { orderByProximity } from "../routeOrder.js";
 
 const DAY_START_MIN = 10 * 60;
 const DAY_END_MIN = 21 * 60;
@@ -168,7 +169,8 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   // 날마다 다른 장소로: 랭킹 순서대로 하루당 maxStops개씩 나눠 담는다.
   const course: unknown[] = [];
   for (let day = 1; day <= days; day++) {
-    const dayPlaces = chosen.slice((day - 1) * maxStops, day * maxStops);
+    // 그날 넣을 장소는 우선순위로 정하고, 순서는 가장 우선인 곳에서 출발해 가까운 곳끼리 잇는다(선 교차 방지).
+    const dayPlaces = orderByProximity(chosen.slice((day - 1) * maxStops, day * maxStops));
     if (dayPlaces.length === 0) break;
     // 90분 간격이 10~21시를 넘으면 그 하루 분량 안에서 간격을 좁힌다.
     const span = DAY_END_MIN - startMinutes;

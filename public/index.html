@@ -208,8 +208,10 @@
   .route-map-pin {
     width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
     display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700;
-    border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    border: 2px solid #fff; box-shadow: 0 1px 4px rgba(2,96,118,.35);
   }
+  /* 첫 장소(가장 우선인 곳, 보통 최애가 다녀간 곳)는 진한 청록으로 출발점 표시 */
+  .route-map-pin.start { background: var(--accent-dark); }
 
   form#composer {
     display: flex; gap: .5rem; padding: .7rem .9rem; border-top: 1px solid var(--border); flex-shrink: 0;
@@ -247,7 +249,7 @@
       <div id="avatar-status"></div>
     </div>
     <div class="spacer"></div>
-    <button id="btn-memory-toggle" class="btn btn-ghost" type="button">🗂️ 기억</button>
+    <button id="btn-memory-toggle" class="btn btn-ghost" type="button" data-i18n="btn.memory">🗂️ 기억</button>
   </header>
 
   <main>
@@ -255,7 +257,7 @@
       <div id="log"></div>
       <form id="composer" autocomplete="off">
         <input id="text" placeholder="덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)">
-        <button type="submit">보내기</button>
+        <button type="submit" data-i18n="btn.send">보내기</button>
       </form>
     </section>
   </main>
@@ -263,32 +265,32 @@
   <div id="drawer-backdrop"></div>
   <aside id="memory-col">
     <div class="drawer-head">
-      <h3>덕메가 기억하는 것</h3>
-      <button id="btn-drawer-close" class="drawer-close" type="button" aria-label="닫기">✕</button>
+      <h3 data-i18n="panel.title">덕메가 기억하는 것</h3>
+      <button id="btn-drawer-close" class="drawer-close" type="button" aria-label="닫기" data-i18n-aria="btn.close">✕</button>
     </div>
     <div class="section">
       <div id="memory-list"></div>
     </div>
     <div class="section">
-      <strong style="font-size:.8rem;">찜한 아이템</strong>
+      <strong style="font-size:.8rem;" data-i18n="panel.wishlist">찜한 아이템</strong>
       <div id="wishlist-list"></div>
     </div>
     <div class="section">
-      <strong style="font-size:.8rem;">보유 아이템</strong>
+      <strong style="font-size:.8rem;" data-i18n="panel.owned">보유 아이템</strong>
       <div id="owned-list"></div>
     </div>
     <div class="section">
-      <strong style="font-size:.8rem;">다녀온 성지</strong>
+      <strong style="font-size:.8rem;" data-i18n="panel.visited">다녀온 성지</strong>
       <div id="visited-list"></div>
     </div>
     <div class="drawer-actions">
-      <button id="btn-new-chat" class="btn btn-ghost" type="button">새 대화</button>
-      <button id="btn-reset-memory" class="btn btn-ghost" type="button">기억 초기화</button>
+      <button id="btn-new-chat" class="btn btn-ghost" type="button" data-i18n="btn.newChat">새 대화</button>
+      <button id="btn-reset-memory" class="btn btn-ghost" type="button" data-i18n="btn.resetMemory">기억 초기화</button>
     </div>
   </aside>
 
   <div id="purchase-counter">구매 연결 0건</div>
-  <div id="affiliate-toast">손민수위키 제휴 링크로 이동해요</div>
+  <div id="affiliate-toast" data-i18n="toast.affiliate">손민수위키 제휴 링크로 이동해요</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -298,6 +300,220 @@
   const avatarStatusEl = document.getElementById('avatar-status');
   const bubbles = new Map(); // message id -> element
   const miniAvatars = new Map(); // message id -> mini-avatar element (말풍선 옆 작은 얼굴)
+
+  // 화면 고정 문구 다국어. 사용자가 마지막으로 보낸 메시지의 언어(ko/en/ja/zh-CN/zh-TW)를 따라가고,
+  // 사전에 없는 키는 한국어로 대체한다. 브랜드·상품명·멤버명·장소명(데이터 값)은 번역하지 않는다.
+  const I18N = {
+    ko: {
+      'status.think': '덕메가 찾는 중…', 'status.happy': '찾았다!', 'status.cheer': '축하해!', 'status.sorry': '음… 잘 모르겠어',
+      'note.searching': '찾고 있어요…',
+      'note.unverified': '아직 확인되지 않은 정보예요. 손민수위키에 질문을 남겨 보면 다른 팬들이 찾아줄 수 있어요.',
+      'badge.original': '원래 제품(검수됨)', 'badge.sample': '예시 대체템', 'badge.similar': '유사 제품(팬 검수)',
+      'badge.sourceOnly': 'X 팬 계정 출처 · 미검증', 'badge.alt': '대체템',
+      'price.unknown': '가격 미확인', 'price.sourceOnly': '참고 가격/재고 미검증', 'price.workbench': '작업대 참고 가격',
+      'stock.unknown': '재고 미확인', 'price.savings': '원래 제품보다 {amount} 저렴',
+      'btn.buy': '바로 구매', 'btn.wish': '찜하기', 'msg.wish': '{name} ({id}) 찜해줘', 'btn.wiki': '손민수위키에서 보기',
+      'btn.xSource': 'X 원본에서 보기', 'btn.checkSeller': '판매처 확인하기', 'label.wikiPreview': '위키 공유 미리보기',
+      'alt.item': '손민수위키에 등록된 상품 이미지', 'alt.place': 'reCree에 등록된 장소 이미지',
+      'alt.placePreview': '{name} 상세 페이지 미리보기', 'alt.placePhoto': '{name} 장소 사진',
+      'redirect.title': '이동 중…', 'redirect.body': '외부 판매처로 이동 중…',
+      'counter.purchase': '구매 연결 {n}건', 'toast.affiliate': '손민수위키 제휴 링크로 이동해요',
+      'group.alternatives': '대체템',
+      'route.title': '{area} 코스', 'route.days': '{n}일', 'route.day': '{n}일차', 'route.empty': '짤 수 있는 코스가 없어요.',
+      'tag.favMember': '최애가 다녀간 곳', 'tag.favGroup': '같은 그룹이 다녀간 곳', 'tag.fandom': '팬덤 성지', 'tag.brand': '착용 브랜드 매장',
+      'route.visit': '방문', 'route.mustTry': '추천 메뉴', 'btn.naverMap': '네이버지도', 'btn.recree': 'reCree에서 보기',
+      'wish.already': '이미 위시리스트에 있어요: {name}', 'wish.added': '위시리스트에 추가했어요: {name}',
+      'owned.already': '이미 보유 중이에요: {name}', 'owned.moved': '보유 아이템으로 옮겼어요: {name} 🎉',
+      'visited.marked': '다녀온 걸로 기록했어요: {names}', 'visited.allAlready': '이미 전부 방문 기록에 있었어요.',
+      'conn.lost': '연결이 잠깐 끊겼어, 다시 말해줄래?',
+      'placeholder.initial': '덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)', 'placeholder.short': '덕메에게 물어보세요',
+      'btn.send': '보내기', 'btn.memory': '🗂️ 기억', 'btn.close': '닫기', 'btn.newChat': '새 대화', 'btn.resetMemory': '기억 초기화',
+      'chat.new': '새 대화를 시작했어요. (기억은 유지돼요)',
+      'confirm.reset': '대화와 기억(찜/보유/방문 포함)을 전부 초기화할까요? 시연을 처음부터 다시 할 때 쓰세요.',
+      'chat.resetDone': '기억을 전부 초기화했어요.',
+      'panel.title': '덕메가 기억하는 것', 'panel.wishlist': '찜한 아이템', 'panel.owned': '보유 아이템', 'panel.visited': '다녀온 성지',
+      'panel.memEmpty': '아직 기억한 게 없어요.', 'panel.listEmpty': '아직 없어요.', 'btn.delete': '삭제',
+      'profile.title': '🧩 내 취향: ', 'profile.group': '최애 그룹 {v}', 'profile.member': '최애 {v}', 'profile.budget': '예산 {v}',
+      'profile.colors': '선호 색 {v}', 'profile.top': '상의 {v}', 'profile.bottom': '하의 {v}', 'profile.shoes': '신발 {v}',
+      'profile.mode': '모드 {v}', 'mode.travel': '성지 중심', 'mode.shopping': '쇼핑 중심', 'mode.both': '쇼핑·성지', 'profile.language': '언어 {v}',
+    },
+    en: {
+      'status.think': 'Dukme is looking…', 'status.happy': 'Found it!', 'status.cheer': 'Congrats!', 'status.sorry': "Hmm… I'm not sure",
+      'note.searching': 'Searching…',
+      'note.unverified': "This info hasn't been confirmed yet. Try asking on Sonminsoo Wiki — other fans may be able to find it.",
+      'badge.original': 'Original item (verified)', 'badge.sample': 'Sample alternative', 'badge.similar': 'Similar item (fan-checked)',
+      'badge.sourceOnly': 'From an X fan account · unverified', 'badge.alt': 'Alternative',
+      'price.unknown': 'Price unknown', 'price.sourceOnly': 'Reference price/stock unverified', 'price.workbench': 'Reference price',
+      'stock.unknown': 'Stock unknown', 'price.savings': '{amount} cheaper than the original',
+      'btn.buy': 'Buy now', 'btn.wish': 'Add to wishlist', 'msg.wish': 'Add {name} ({id}) to my wishlist', 'btn.wiki': 'View on Sonminsoo Wiki',
+      'btn.xSource': 'View original on X', 'btn.checkSeller': 'Check seller', 'label.wikiPreview': 'Wiki share preview',
+      'alt.item': 'Product image from Sonminsoo Wiki', 'alt.place': 'Place image from reCree',
+      'alt.placePreview': '{name} page preview', 'alt.placePhoto': 'Photo of {name}',
+      'redirect.title': 'Redirecting…', 'redirect.body': 'Taking you to the seller…',
+      'counter.purchase': 'Purchase links: {n}', 'toast.affiliate': 'Opening a Sonminsoo Wiki partner link',
+      'group.alternatives': 'Alternatives',
+      'route.title': '{area} route', 'route.days': '{n} days', 'route.day': 'Day {n}', 'route.empty': "Couldn't build a route.",
+      'tag.favMember': 'Your bias visited', 'tag.favGroup': 'Same group visited', 'tag.fandom': 'Fan spot', 'tag.brand': 'Store of a worn brand',
+      'route.visit': 'Visited by', 'route.mustTry': 'Must try', 'btn.naverMap': 'Naver Map', 'btn.recree': 'View on reCree',
+      'wish.already': 'Already in your wishlist: {name}', 'wish.added': 'Added to your wishlist: {name}',
+      'owned.already': 'Already owned: {name}', 'owned.moved': 'Moved to owned items: {name} 🎉',
+      'visited.marked': 'Marked as visited: {names}', 'visited.allAlready': 'All of these were already marked as visited.',
+      'conn.lost': 'Lost connection for a moment — could you say that again?',
+      'placeholder.initial': 'Talk to Dukme (e.g. My bias is SION from NCT WISH)', 'placeholder.short': 'Ask Dukme',
+      'btn.send': 'Send', 'btn.memory': '🗂️ Memory', 'btn.close': 'Close', 'btn.newChat': 'New chat', 'btn.resetMemory': 'Reset memory',
+      'chat.new': 'Started a new chat. (Memory is kept)',
+      'confirm.reset': 'Reset the chat and all memory (including wishlist/owned/visited)? Use this to restart the demo.',
+      'chat.resetDone': 'All memory has been reset.',
+      'panel.title': 'What Dukme remembers', 'panel.wishlist': 'Wishlist', 'panel.owned': 'Owned items', 'panel.visited': 'Visited spots',
+      'panel.memEmpty': "Nothing remembered yet.", 'panel.listEmpty': 'Nothing yet.', 'btn.delete': 'Delete',
+      'profile.title': '🧩 My taste: ', 'profile.group': 'Fave group {v}', 'profile.member': 'Bias {v}', 'profile.budget': 'Budget {v}',
+      'profile.colors': 'Colors {v}', 'profile.top': 'Top {v}', 'profile.bottom': 'Bottom {v}', 'profile.shoes': 'Shoes {v}',
+      'profile.mode': 'Mode {v}', 'mode.travel': 'Fan spots', 'mode.shopping': 'Shopping', 'mode.both': 'Shopping & spots', 'profile.language': 'Language {v}',
+    },
+    ja: {
+      'status.think': 'ドクメが探し中…', 'status.happy': '見つけた!', 'status.cheer': 'おめでとう!', 'status.sorry': 'うーん…よく分からないや',
+      'note.searching': '探しています…',
+      'note.unverified': 'まだ確認されていない情報です。ソンミンスWikiで質問すると、ほかのファンが見つけてくれるかも。',
+      'badge.original': '本物のアイテム(確認済み)', 'badge.sample': '例の代わりアイテム', 'badge.similar': '似ているアイテム(ファン確認)',
+      'badge.sourceOnly': 'Xファンアカウント情報・未確認', 'badge.alt': '代わりアイテム',
+      'price.unknown': '価格未確認', 'price.sourceOnly': '参考価格・在庫は未確認', 'price.workbench': '参考価格',
+      'stock.unknown': '在庫未確認', 'price.savings': '本物より{amount}安い',
+      'btn.buy': '今すぐ購入', 'btn.wish': 'お気に入り', 'msg.wish': '{name} ({id}) をお気に入りに入れて', 'btn.wiki': 'ソンミンスWikiで見る',
+      'btn.xSource': 'Xの元投稿を見る', 'btn.checkSeller': '販売先を確認', 'label.wikiPreview': 'Wiki共有プレビュー',
+      'alt.item': 'ソンミンスWikiの商品画像', 'alt.place': 'reCreeの場所画像',
+      'alt.placePreview': '{name} 詳細ページのプレビュー', 'alt.placePhoto': '{name} の写真',
+      'redirect.title': '移動中…', 'redirect.body': '外部の販売ページへ移動中…',
+      'counter.purchase': '購入リンク {n}件', 'toast.affiliate': 'ソンミンスWikiの提携リンクへ移動します',
+      'group.alternatives': '代わりアイテム',
+      'route.title': '{area} コース', 'route.days': '{n}日間', 'route.day': '{n}日目', 'route.empty': 'コースを作れませんでした。',
+      'tag.favMember': '推しが行った場所', 'tag.favGroup': '同じグループが行った場所', 'tag.fandom': 'ファンの聖地', 'tag.brand': '着用ブランドの店舗',
+      'route.visit': '訪問', 'route.mustTry': 'おすすめ', 'btn.naverMap': 'NAVERマップ', 'btn.recree': 'reCreeで見る',
+      'wish.already': 'もうお気に入りに入っています: {name}', 'wish.added': 'お気に入りに追加しました: {name}',
+      'owned.already': 'もう持っています: {name}', 'owned.moved': '持っているアイテムに移しました: {name} 🎉',
+      'visited.marked': '行った場所として記録しました: {names}', 'visited.allAlready': 'すべてもう訪問済みでした。',
+      'conn.lost': '接続が一瞬切れちゃった。もう一度言ってくれる?',
+      'placeholder.initial': 'ドクメに話しかけてね(例: 推しはNCT WISHのSION)', 'placeholder.short': 'ドクメに聞いてみて',
+      'btn.send': '送信', 'btn.memory': '🗂️ 記憶', 'btn.close': '閉じる', 'btn.newChat': '新しい会話', 'btn.resetMemory': '記憶をリセット',
+      'chat.new': '新しい会話を始めました。(記憶はそのまま)',
+      'confirm.reset': '会話と記憶(お気に入り・所持・訪問を含む)をすべてリセットしますか?デモを最初からやり直すときに使います。',
+      'chat.resetDone': '記憶をすべてリセットしました。',
+      'panel.title': 'ドクメが覚えていること', 'panel.wishlist': 'お気に入り', 'panel.owned': '持っているアイテム', 'panel.visited': '行った聖地',
+      'panel.memEmpty': 'まだ何も覚えていません。', 'panel.listEmpty': 'まだありません。', 'btn.delete': '削除',
+      'profile.title': '🧩 わたしの好み: ', 'profile.group': '推しグループ {v}', 'profile.member': '推し {v}', 'profile.budget': '予算 {v}',
+      'profile.colors': '好きな色 {v}', 'profile.top': 'トップス {v}', 'profile.bottom': 'ボトムス {v}', 'profile.shoes': '靴 {v}',
+      'profile.mode': 'モード {v}', 'mode.travel': '聖地中心', 'mode.shopping': 'ショッピング中心', 'mode.both': 'ショッピング・聖地', 'profile.language': '言語 {v}',
+    },
+    'zh-CN': {
+      'status.think': 'Dukme 正在找…', 'status.happy': '找到了!', 'status.cheer': '恭喜!', 'status.sorry': '嗯…我不太确定',
+      'note.searching': '正在查找…',
+      'note.unverified': '这是尚未确认的信息。可以去孙敏秀Wiki提问,其他粉丝也许能帮你找到。',
+      'badge.original': '原款(已核实)', 'badge.sample': '示例平替', 'badge.similar': '相似款(粉丝核对)',
+      'badge.sourceOnly': 'X粉丝账号来源·未核实', 'badge.alt': '平替',
+      'price.unknown': '价格未确认', 'price.sourceOnly': '参考价格/库存未核实', 'price.workbench': '参考价格',
+      'stock.unknown': '库存未确认', 'price.savings': '比原款便宜{amount}',
+      'btn.buy': '立即购买', 'btn.wish': '加入心愿单', 'msg.wish': '把 {name} ({id}) 加入心愿单', 'btn.wiki': '在孙敏秀Wiki查看',
+      'btn.xSource': '查看X原帖', 'btn.checkSeller': '查看卖家', 'label.wikiPreview': 'Wiki分享预览',
+      'alt.item': '孙敏秀Wiki登记的商品图片', 'alt.place': 'reCree登记的地点图片',
+      'alt.placePreview': '{name} 详情页预览', 'alt.placePhoto': '{name} 地点照片',
+      'redirect.title': '跳转中…', 'redirect.body': '正在跳转到外部卖家…',
+      'counter.purchase': '购买链接 {n}次', 'toast.affiliate': '正在打开孙敏秀Wiki合作链接',
+      'group.alternatives': '平替',
+      'route.title': '{area} 路线', 'route.days': '{n}天', 'route.day': '第{n}天', 'route.empty': '没能排出路线。',
+      'tag.favMember': '本命去过的地方', 'tag.favGroup': '同团成员去过的地方', 'tag.fandom': '粉丝圣地', 'tag.brand': '同款品牌门店',
+      'route.visit': '到访', 'route.mustTry': '推荐', 'btn.naverMap': 'Naver地图', 'btn.recree': '在reCree查看',
+      'wish.already': '已经在心愿单里了: {name}', 'wish.added': '已加入心愿单: {name}',
+      'owned.already': '已经拥有: {name}', 'owned.moved': '已移到已拥有: {name} 🎉',
+      'visited.marked': '已记录为去过: {names}', 'visited.allAlready': '这些都已经在到访记录里了。',
+      'conn.lost': '连接刚刚断了一下,能再说一次吗?',
+      'placeholder.initial': '和 Dukme 聊聊吧(例: 我的本命是NCT WISH的SION)', 'placeholder.short': '问问 Dukme',
+      'btn.send': '发送', 'btn.memory': '🗂️ 记忆', 'btn.close': '关闭', 'btn.newChat': '新对话', 'btn.resetMemory': '重置记忆',
+      'chat.new': '已开始新对话。(记忆会保留)',
+      'confirm.reset': '要重置对话和全部记忆(包括心愿单/已拥有/到访)吗?用于从头重新演示。',
+      'chat.resetDone': '已重置全部记忆。',
+      'panel.title': 'Dukme 记得的事', 'panel.wishlist': '心愿单', 'panel.owned': '已拥有', 'panel.visited': '去过的圣地',
+      'panel.memEmpty': '还没有记住任何事。', 'panel.listEmpty': '还没有。', 'btn.delete': '删除',
+      'profile.title': '🧩 我的喜好: ', 'profile.group': '本命团 {v}', 'profile.member': '本命 {v}', 'profile.budget': '预算 {v}',
+      'profile.colors': '喜欢的颜色 {v}', 'profile.top': '上衣 {v}', 'profile.bottom': '下装 {v}', 'profile.shoes': '鞋 {v}',
+      'profile.mode': '模式 {v}', 'mode.travel': '圣地为主', 'mode.shopping': '购物为主', 'mode.both': '购物·圣地', 'profile.language': '语言 {v}',
+    },
+    'zh-TW': {
+      'status.think': 'Dukme 正在找…', 'status.happy': '找到了!', 'status.cheer': '恭喜!', 'status.sorry': '嗯…我不太確定',
+      'note.searching': '正在查找…',
+      'note.unverified': '這是尚未確認的資訊。可以到孫敏秀Wiki提問,其他粉絲也許能幫你找到。',
+      'badge.original': '原款(已核實)', 'badge.sample': '示例平替', 'badge.similar': '相似款(粉絲核對)',
+      'badge.sourceOnly': 'X粉絲帳號來源·未核實', 'badge.alt': '平替',
+      'price.unknown': '價格未確認', 'price.sourceOnly': '參考價格/庫存未核實', 'price.workbench': '參考價格',
+      'stock.unknown': '庫存未確認', 'price.savings': '比原款便宜{amount}',
+      'btn.buy': '立即購買', 'btn.wish': '加入願望清單', 'msg.wish': '把 {name} ({id}) 加入願望清單', 'btn.wiki': '在孫敏秀Wiki查看',
+      'btn.xSource': '查看X原文', 'btn.checkSeller': '查看賣家', 'label.wikiPreview': 'Wiki分享預覽',
+      'alt.item': '孫敏秀Wiki登錄的商品圖片', 'alt.place': 'reCree登錄的地點圖片',
+      'alt.placePreview': '{name} 詳情頁預覽', 'alt.placePhoto': '{name} 地點照片',
+      'redirect.title': '跳轉中…', 'redirect.body': '正在前往外部賣家…',
+      'counter.purchase': '購買連結 {n}次', 'toast.affiliate': '正在開啟孫敏秀Wiki合作連結',
+      'group.alternatives': '平替',
+      'route.title': '{area} 路線', 'route.days': '{n}天', 'route.day': '第{n}天', 'route.empty': '沒能排出路線。',
+      'tag.favMember': '本命去過的地方', 'tag.favGroup': '同團成員去過的地方', 'tag.fandom': '粉絲聖地', 'tag.brand': '同款品牌門市',
+      'route.visit': '到訪', 'route.mustTry': '推薦', 'btn.naverMap': 'Naver地圖', 'btn.recree': '在reCree查看',
+      'wish.already': '已經在願望清單裡了: {name}', 'wish.added': '已加入願望清單: {name}',
+      'owned.already': '已經擁有: {name}', 'owned.moved': '已移到已擁有: {name} 🎉',
+      'visited.marked': '已記錄為去過: {names}', 'visited.allAlready': '這些都已經在到訪紀錄裡了。',
+      'conn.lost': '連線剛剛斷了一下,能再說一次嗎?',
+      'placeholder.initial': '和 Dukme 聊聊吧(例: 我的本命是NCT WISH的SION)', 'placeholder.short': '問問 Dukme',
+      'btn.send': '傳送', 'btn.memory': '🗂️ 記憶', 'btn.close': '關閉', 'btn.newChat': '新對話', 'btn.resetMemory': '重置記憶',
+      'chat.new': '已開始新對話。(記憶會保留)',
+      'confirm.reset': '要重置對話和全部記憶(包括願望清單/已擁有/到訪)嗎?用於從頭重新示範。',
+      'chat.resetDone': '已重置全部記憶。',
+      'panel.title': 'Dukme 記得的事', 'panel.wishlist': '願望清單', 'panel.owned': '已擁有', 'panel.visited': '去過的聖地',
+      'panel.memEmpty': '還沒有記住任何事。', 'panel.listEmpty': '還沒有。', 'btn.delete': '刪除',
+      'profile.title': '🧩 我的喜好: ', 'profile.group': '本命團 {v}', 'profile.member': '本命 {v}', 'profile.budget': '預算 {v}',
+      'profile.colors': '喜歡的顏色 {v}', 'profile.top': '上衣 {v}', 'profile.bottom': '下身 {v}', 'profile.shoes': '鞋 {v}',
+      'profile.mode': '模式 {v}', 'mode.travel': '聖地為主', 'mode.shopping': '購物為主', 'mode.both': '購物·聖地', 'profile.language': '語言 {v}',
+    },
+  };
+  // 덕메 답변에 "아직 확인되지 않은 정보" 안내가 이미 들어 있는지 언어별로 확인한다.
+  const UNVERIFIED_IN_REPLY = /확인되지 않은|not (?:been )?(?:confirmed|verified)|unverified|確認されていない|未確認|未确认|尚未确认/i;
+
+  let uiLang = 'ko';
+  function t(key, vars) {
+    let text = (I18N[uiLang] && I18N[uiLang][key]) ?? I18N.ko[key] ?? key;
+    if (vars) for (const [k, v] of Object.entries(vars)) text = text.split(`{${k}}`).join(String(v));
+    return text;
+  }
+
+  // 간체/번체를 가르는 흔한 글자들 (한쪽에만 있는 자형).
+  const SIMPLIFIED_ONLY = '这们吗买东么说个来时会过对还没发样问爱欢应该帮边点价钱让给带员团队饭馆车门图线场预颜寻荐览红绿蓝袜视频网试报纸书语译号码热闹买卖岁庆贵乐关开见长后从发现这样为';
+  const TRADITIONAL_ONLY = '這們嗎買東麼說個來時會過對還沒發樣問愛歡應該幫邊點價錢讓給帶員團隊飯館車門圖線場預顏尋薦覽紅綠藍襪視頻網試報紙書語譯號碼熱鬧賣歲慶貴樂關開見長後從發現為麼裡';
+  function detectLang(text) {
+    if (/[぀-ヿ]/.test(text)) return 'ja'; // 히라가나·가타카나
+    if (/[가-힣ㄱ-ㆎ]/.test(text)) return 'ko';
+    if (/[一-鿿]/.test(text)) {
+      let s = 0, tr = 0;
+      for (const ch of text) { if (SIMPLIFIED_ONLY.includes(ch)) s++; if (TRADITIONAL_ONLY.includes(ch)) tr++; }
+      if (s > tr) return 'zh-CN';
+      if (tr > s) return 'zh-TW';
+      return uiLang.startsWith('zh') ? uiLang : 'zh-CN';
+    }
+    // 영어 문장만: 소문자 세 글자 이상 단어가 있을 때 ("NCT WISH"처럼 그룹명만 친 건 언어를 안 바꾼다)
+    if (/[a-z]{3,}/.test(text)) return 'en';
+    return uiLang; // 숫자·이모지만 있으면 그대로
+  }
+
+  // HTML에 박혀 있는 고정 문구(버튼·패널 제목·placeholder 등)를 현재 언어로 다시 쓴다.
+  let hasSentMessage = false;
+  function applyStaticI18n() {
+    document.documentElement.lang = uiLang;
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    document.getElementById('text').placeholder = t(hasSentMessage ? 'placeholder.short' : 'placeholder.initial');
+  }
+  function setUiLang(lang) {
+    if (!I18N[lang] || lang === uiLang) return;
+    uiLang = lang;
+    applyStaticI18n();
+    const info = EXPRESSIONS[currentExpression];
+    avatarStatusEl.textContent = info && info.text ? t(info.text) : '';
+    refreshMemoryPanel();
+  }
 
   // 덕메 마스코트: assets/dukme-face.png 스타일(청록 둥근 사각형 + 흰 세로 눈 두 개) 그대로 SVG로
   // 다시 그렸다. 기본은 그 그림 그대로, 나머지 표정은 눈 모양만 바꾸고 불필요한 장식은 넣지 않는다.
@@ -336,10 +552,10 @@
   // 오면 "다음에 보여줄 표정"만 기억해뒀다가 최소 시간이 끝나는 순간 가장 최신 요청을 적용한다.
   const EXPRESSIONS = {
     idle: { text: '', minMs: 0 },
-    think: { text: '덕메가 찾는 중…', minMs: 1000 },
-    happy: { text: '찾았다!', minMs: 3000 },
-    cheer: { text: '축하해!', minMs: 3000 },
-    sorry: { text: '음… 잘 모르겠어', minMs: 3000 },
+    think: { text: 'status.think', minMs: 1000 }, // text는 I18N 키
+    happy: { text: 'status.happy', minMs: 3000 },
+    cheer: { text: 'status.cheer', minMs: 3000 },
+    sorry: { text: 'status.sorry', minMs: 3000 },
   };
   let expressionBusyUntil = 0;
   let latestExpressionRequest = 'idle';
@@ -351,7 +567,7 @@
     currentExpression = name;
     avatar.innerHTML = dukmeAvatarSvg(name);
     bounce(avatar);
-    avatarStatusEl.textContent = info.text;
+    avatarStatusEl.textContent = info.text ? t(info.text) : '';
     expressionBusyUntil = Date.now() + info.minMs;
   }
   function setExpression(name) {
@@ -396,7 +612,7 @@
   }
   function showSearchingNote() {
     if (searchingNoteEl && searchingNoteEl.isConnected) return;
-    searchingNoteEl = systemNote('찾고 있어요…');
+    searchingNoteEl = systemNote(t('note.searching'));
   }
   function clearSearchingNote() {
     if (searchingNoteEl) searchingNoteEl.remove();
@@ -409,15 +625,17 @@
   function finishTurnSearch() {
     clearSearchingNote();
     // 덕메 답변에 이미 같은 말이 있으면 화면 안내는 생략한다.
-    if (turnHadEmptySearch && !turnFoundSomething && !turnAgentText.includes('확인되지 않은')) {
-      systemNote('아직 확인되지 않은 정보예요. 손민수위키에 질문을 남겨 보면 다른 팬들이 찾아줄 수 있어요.');
+    if (turnHadEmptySearch && !turnFoundSomething && !UNVERIFIED_IN_REPLY.test(turnAgentText)) {
+      systemNote(t('note.unverified'));
     }
     turnHadEmptySearch = false;
     turnFoundSomething = false;
     turnAgentText = '';
   }
 
-  const won = (n) => n.toLocaleString('ko-KR') + '원';
+  const won = (n) => uiLang === 'ko' ? n.toLocaleString('ko-KR') + '원' : '₩' + n.toLocaleString('en-US');
+  // price가 null인 아이템(priceText만 있거나 가격 미확인)이 있어서 won()에 바로 넘기지 않는다.
+  const priceLabel = (i) => typeof i.price === 'number' ? won(i.price) : (i.priceText || t('price.unknown'));
   const CATEGORY_ICON = { "가방": "👜", "모자": "🧢", "신발": "👟", "목걸이": "📿", "니트": "🧶", "아우터": "🧥", "선글라스": "🕶️", "이어링": "💎", "셔츠": "👔", "반지": "💍", "벨트": "🧵" };
   const TYPE_ICON = { "식당": "🍽️", "카페": "☕", "매장": "🏬", "포토스팟": "📸" };
 
@@ -478,7 +696,7 @@
       image.className = 'media-thumb-img';
       image.loading = 'lazy';
       image.decoding = 'async';
-      image.alt = type === 'item' ? '손민수위키에 등록된 상품 이미지' : 'reCree에 등록된 장소 이미지';
+      image.alt = type === 'item' ? t('alt.item') : t('alt.place');
       image.referrerPolicy = 'no-referrer';
       image.addEventListener('error', () => image.remove(), { once: true });
       image.addEventListener('load', () => onImage(image, result.kind), { once: true });
@@ -499,7 +717,7 @@
     title.textContent = `${item.brand} · ${item.name}`;
     const badge = document.createElement('span');
     badge.className = 'badge ' + (item.isOriginal ? 'original' : item.isSample ? 'sample' : item.matchType === 'similar' ? 'similar' : item.matchType === 'source_only' ? 'sample' : 'alt');
-    badge.textContent = item.isOriginal ? '원래 제품(검수됨)' : item.isSample ? '예시 대체템' : item.matchType === 'similar' ? '유사 제품(팬 검수)' : item.matchType === 'source_only' ? 'X 팬 계정 출처 · 미검증' : '대체템';
+    badge.textContent = t(item.isOriginal ? 'badge.original' : item.isSample ? 'badge.sample' : item.matchType === 'similar' ? 'badge.similar' : item.matchType === 'source_only' ? 'badge.sourceOnly' : 'badge.alt');
     title.append(badge);
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -507,12 +725,12 @@
     const price = document.createElement('div');
     price.className = 'price';
     // 일부 아이템은 원화가 아니라 priceText($83, ¥1490 등)로만 가격이 있다.
-    price.textContent = typeof item.price === 'number' ? won(item.price) : (item.priceText || '가격 미확인');
-    if (item.matchType === 'source_only') price.textContent += ' · 참고 가격/재고 미검증';
-    else if (item.priceProvenance === 'workbench_unverified') price.textContent += ' · 작업대 참고 가격';
-    else if (item.stockStatus === 'unknown') price.textContent += ' · 재고 미확인';
+    price.textContent = priceLabel(item);
+    if (item.matchType === 'source_only') price.textContent += ' · ' + t('price.sourceOnly');
+    else if (item.priceProvenance === 'workbench_unverified') price.textContent += ' · ' + t('price.workbench');
+    else if (item.stockStatus === 'unknown') price.textContent += ' · ' + t('stock.unknown');
     if (typeof item.savingsVsOriginal === 'number' && item.savingsVsOriginal > 0) {
-      price.textContent += ` (원래 제품보다 ${won(item.savingsVsOriginal)} 저렴)`;
+      price.textContent += ` (${t('price.savings', { amount: won(item.savingsVsOriginal) })})`;
     }
     info.append(title, meta, price);
     const actions = document.createElement('div');
@@ -521,19 +739,20 @@
       // 예시 대체템: 손민수위키 검수 데이터가 아니라서 위키 링크도, 찜도 없이 "바로 구매"만 보여준다.
       const buyBtn = document.createElement('button');
       buyBtn.className = 'buy-btn';
-      buyBtn.textContent = '바로 구매';
+      buyBtn.textContent = t('btn.buy');
       buyBtn.onclick = () => recordPurchaseClick(item.url);
       if (item.url) actions.append(buyBtn);
     } else {
       const wishBtn = document.createElement('button');
       wishBtn.className = 'wish-btn';
-      wishBtn.textContent = '찜하기';
-      wishBtn.onclick = () => sendText(`${item.name} (${item.id}) 찜해줘`);
+      wishBtn.textContent = t('btn.wish');
+      // 보내는 문장도 현재 화면 언어로 — 한국어로 보내면 덕메 답변과 화면 언어가 한국어로 돌아가 버린다.
+      wishBtn.onclick = () => sendText(t('msg.wish', { name: item.name, id: item.id }));
       actions.append(wishBtn);
       if (item.wikiUrl) {
         const wikiBtn = document.createElement('button');
         wikiBtn.className = 'buy-btn';
-        wikiBtn.textContent = '손민수위키에서 보기';
+        wikiBtn.textContent = t('btn.wiki');
         wikiBtn.onclick = () => window.open(item.wikiUrl, '_blank', 'noopener');
         actions.append(wikiBtn);
       }
@@ -541,7 +760,7 @@
       if (fanSourceUrl) {
         const sourceBtn = document.createElement('button');
         sourceBtn.className = 'link-btn';
-        sourceBtn.textContent = 'X 원본에서 보기';
+        sourceBtn.textContent = t('btn.xSource');
         sourceBtn.onclick = () => window.open(fanSourceUrl, '_blank', 'noopener,noreferrer');
         actions.append(sourceBtn);
       }
@@ -549,7 +768,7 @@
       if (item.url && /^https:\/\//i.test(item.url) && !/^https:\/\/(x\.com|twitter\.com)\//i.test(item.url)) {
         const buyLink = document.createElement('button');
         buyLink.className = 'link-btn';
-        buyLink.textContent = item.matchType === 'source_only' ? '판매처 확인하기' : '바로 구매';
+        buyLink.textContent = t(item.matchType === 'source_only' ? 'btn.checkSeller' : 'btn.buy');
         buyLink.onclick = () => recordPurchaseClick(item.url);
         actions.append(buyLink);
       }
@@ -565,7 +784,7 @@
         if (previewKind === 'share_preview') {
           const label = document.createElement('div');
           label.className = 'media-preview-label';
-          label.textContent = '위키 공유 미리보기';
+          label.textContent = t('label.wikiPreview');
           info.append(label);
         }
       });
@@ -586,10 +805,10 @@
       win = window.open('', '_blank');
       if (win) {
         win.document.write(
-          '<!doctype html><meta charset="utf-8"><title>이동 중…</title>' +
+          '<!doctype html><meta charset="utf-8"><title>' + escapeHtml(t('redirect.title')) + '</title>' +
           '<body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;' +
           'font:16px -apple-system,sans-serif;color:#02a5c8;background:#fff;">' +
-          '외부 판매처로 이동 중…<script>window.opener=null<\/script></body>'
+          escapeHtml(t('redirect.body')) + '<script>window.opener=null<\/script></body>'
         );
       }
     }
@@ -607,7 +826,7 @@
 
   const purchaseCounterEl = document.getElementById('purchase-counter');
   function showPurchaseCounter(n) {
-    purchaseCounterEl.textContent = `구매 연결 ${n}건`;
+    purchaseCounterEl.textContent = t('counter.purchase', { n });
     purchaseCounterEl.classList.add('show');
   }
 
@@ -651,7 +870,7 @@
     if (data.alternatives.length > 0) {
       const label = document.createElement('div');
       label.className = 'card-group-label';
-      label.textContent = '대체템';
+      label.textContent = t('group.alternatives');
       wrap.append(label);
       for (const alt of data.alternatives) wrap.append(itemCard(alt));
     }
@@ -668,12 +887,12 @@
     const box = document.createElement('div');
     box.className = 'timeline';
     const title = document.createElement('h4');
-    title.textContent = `${data.area} 코스${data.days > 1 ? ' · ' + data.days + '일' : ''}${data.date ? ' · ' + data.date : ''}`;
+    title.textContent = t('route.title', { area: data.area }) + (data.days > 1 ? ' · ' + t('route.days', { n: data.days }) : '') + (data.date ? ' · ' + data.date : '');
     box.append(title);
     if (!data.course || data.course.length === 0) {
       const p = document.createElement('div');
       p.className = 'meta';
-      p.textContent = data.reason || '짤 수 있는 코스가 없어요.';
+      p.textContent = data.reason || t('route.empty');
       box.append(p);
     } else {
       let lastDay = null;
@@ -683,7 +902,7 @@
           const dayHead = document.createElement('div');
           dayHead.className = 'meta';
           dayHead.style.cssText = 'font-weight:700;color:var(--text);margin-top:.4rem;';
-          dayHead.textContent = `${stop.day}일차`;
+          dayHead.textContent = t('route.day', { n: stop.day });
           box.append(dayHead);
         }
         const row = document.createElement('div');
@@ -697,29 +916,30 @@
           addSourcePhoto('place', stop.placeId, (image, previewKind) => {
             if (!row.isConnected) return;
             image.className = 'place-photo';
-            image.alt = previewKind === 'share_preview' ? `${stop.name} 상세 페이지 미리보기` : `${stop.name} 장소 사진`;
+            image.alt = t(previewKind === 'share_preview' ? 'alt.placePreview' : 'alt.placePhoto', { name: stop.name });
             row.insertBefore(image, body);
             row.classList.add('has-photo');
           });
         }
         const name = document.createElement('div');
         name.className = 'name';
-        const tag = stop.isFavoriteMemberVisit ? ' · 최애가 다녀간 곳'
-          : stop.isFavoriteGroupVisit ? ' · 같은 그룹이 다녀간 곳'
-          : stop.isFandomSpot ? ' · 팬덤 성지'
-          : stop.isBrandMatch ? ' · 착용 브랜드 매장' : '';
+        const tagKey = stop.isFavoriteMemberVisit ? 'tag.favMember'
+          : stop.isFavoriteGroupVisit ? 'tag.favGroup'
+          : stop.isFandomSpot ? 'tag.fandom'
+          : stop.isBrandMatch ? 'tag.brand' : '';
+        const tag = tagKey ? ' · ' + t(tagKey) : '';
         name.textContent = `${TYPE_ICON[stop.type] || '📍'} ${stop.name}${tag}`;
         const meta = document.createElement('div');
         meta.className = 'meta';
         // KSPO DOME처럼 여러 그룹이 섞인 곳은 그룹 이름을 한 번씩만("단체, 단체…" 대신).
         const visitNote = (stop.visitGroups && stop.visitGroups.length > 0) ? stop.visitGroups.join(', ') : '';
-        meta.textContent = `${stop.type} · ${stop.note}` + (visitNote ? ` · 방문: ${visitNote}` : '');
+        meta.textContent = `${stop.type} · ${stop.note}` + (visitNote ? ` · ${t('route.visit')}: ${visitNote}` : '');
         body.append(name, meta);
         if (stop.mustTry) {
           const must = document.createElement('div');
           must.className = 'meta';
           must.style.color = 'var(--accent-dark)';
-          must.textContent = `${stop.mustTryLabel || '추천 메뉴'}: ${stop.mustTry}`;
+          must.textContent = `${stop.mustTryLabel || t('route.mustTry')}: ${stop.mustTry}`;
           body.append(must);
         }
         const placeActions = document.createElement('div');
@@ -727,14 +947,14 @@
         if (stop.naverMapUrl) {
           const mapBtn = document.createElement('button');
           mapBtn.className = 'buy-btn';
-          mapBtn.textContent = '네이버지도';
+          mapBtn.textContent = t('btn.naverMap');
           mapBtn.onclick = () => window.open(stop.naverMapUrl, '_blank', 'noopener');
           placeActions.append(mapBtn);
         }
         if (stop.recreeUrl) {
           const recreeBtn = document.createElement('button');
           recreeBtn.className = 'link-btn';
-          recreeBtn.textContent = 'reCree에서 보기';
+          recreeBtn.textContent = t('btn.recree');
           recreeBtn.onclick = () => window.open(stop.recreeUrl, '_blank', 'noopener');
           placeActions.append(recreeBtn);
         }
@@ -761,20 +981,24 @@
     wrap.append(mapDiv);
     try {
       const map = L.map(mapId, { scrollWheelZoom: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // CARTO Voyager: OSM 기본 타일보다 차분해서 청록 마커·경로가 잘 보인다. 저작권 표기는 OSM + CARTO 둘 다.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors',
+        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       }).addTo(map);
       const latlngs = withCoords.map((s) => [s.lat, s.lng]);
       withCoords.forEach((s, i) => {
-        const icon = L.divIcon({ className: 'route-map-pin', html: String(i + 1), iconSize: [24, 24] });
+        const icon = L.divIcon({ className: 'route-map-pin' + (i === 0 ? ' start' : ''), html: String(i + 1), iconSize: [24, 24] });
         const visitNote = (s.visitGroups && s.visitGroups.length > 0) ? s.visitGroups.join(', ') : '';
         const popup = `<strong>${escapeHtml(s.name)}</strong>` +
-          (visitNote ? `<br>방문: ${escapeHtml(visitNote)}` : '') +
-          (s.mustTry ? `<br>${escapeHtml(s.mustTryLabel || '추천 메뉴')}: ${escapeHtml(s.mustTry)}` : '');
+          (visitNote ? `<br>${escapeHtml(t('route.visit'))}: ${escapeHtml(visitNote)}` : '') +
+          (s.mustTry ? `<br>${escapeHtml(s.mustTryLabel || t('route.mustTry'))}: ${escapeHtml(s.mustTry)}` : '');
         L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
       });
-      if (latlngs.length > 1) L.polyline(latlngs, { color: '#02a5c8', weight: 3 }).addTo(map);
+      if (latlngs.length > 1) {
+        L.polyline(latlngs, { color: '#02a5c8', weight: 2.5, opacity: 0.75, lineCap: 'round', lineJoin: 'round', smoothFactor: 1.5 }).addTo(map);
+      }
       map.fitBounds(latlngs.length > 1 ? latlngs : [[latlngs[0][0] + 0.001, latlngs[0][1]], latlngs[0]], { padding: [24, 24], maxZoom: 15 });
     } catch (err) {
       console.warn('지도를 띄우지 못했어요 (코스 목록은 그대로 보여요):', err);
@@ -784,21 +1008,21 @@
 
   function renderAddWishlist(data) {
     const text = data.alreadyInWishlist
-      ? `이미 위시리스트에 있어요: ${data.item.name}`
-      : `위시리스트에 추가했어요: ${data.item.name}`;
+      ? t('wish.already', { name: data.item.name })
+      : t('wish.added', { name: data.item.name });
     systemNote(text);
     refreshMemoryPanel();
   }
 
   function renderUpdateOwned(data) {
-    const text = data.alreadyOwned ? `이미 보유 중이에요: ${data.item.name}` : `보유 아이템으로 옮겼어요: ${data.item.name} 🎉`;
+    const text = t(data.alreadyOwned ? 'owned.already' : 'owned.moved', { name: data.item.name });
     systemNote(text);
     refreshMemoryPanel();
   }
 
   function renderMarkVisited(data) {
     const names = (data.marked || []).map((p) => p.name);
-    const text = names.length > 0 ? `다녀온 걸로 기록했어요: ${names.join(', ')}` : '이미 전부 방문 기록에 있었어요.';
+    const text = names.length > 0 ? t('visited.marked', { names: names.join(', ') }) : t('visited.allAlready');
     systemNote(text);
     refreshMemoryPanel();
   }
@@ -827,7 +1051,7 @@
   function noteConnectionLost() {
     if (connectionLostNoted) return;
     connectionLostNoted = true;
-    systemNote('연결이 잠깐 끊겼어, 다시 말해줄래?');
+    systemNote(t('conn.lost'));
   }
   const es = new EventSource('/events');
   es.onopen = () => { connectionLostNoted = false; };
@@ -841,6 +1065,7 @@
     }
     // source === 'agent'
     if (event.type === 'input' && event.kind === 'user') {
+      setUiLang(detectLang(event.text || ''));
       ensureTurn(event.id);
       rowBubble(event.id, 'you').innerHTML = formatInline(event.text);
       scrollDown();
@@ -888,7 +1113,7 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
       console.warn('메시지 전송 실패:', err);
-      systemNote('연결이 잠깐 끊겼어, 다시 말해줄래?');
+      systemNote(t('conn.lost'));
     }
   }
 
@@ -898,7 +1123,8 @@
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
-    input.placeholder = '덕메에게 물어보세요'; // 한 번 말한 뒤엔 예시 문구 없이 짧게
+    hasSentMessage = true;
+    input.placeholder = t('placeholder.short'); // 한 번 말한 뒤엔 예시 문구 없이 짧게
     await sendText(text);
   };
 
@@ -927,12 +1153,12 @@
     resetTurnSearch();
     rawText.clear();
     resetExpression();
-    systemNote('새 대화를 시작했어요. (기억은 유지돼요)');
+    systemNote(t('chat.new'));
     await refreshMemoryPanel();
   };
 
   document.getElementById('btn-reset-memory').onclick = async () => {
-    if (!confirm('대화와 기억(찜/보유/방문 포함)을 전부 초기화할까요? 시연을 처음부터 다시 할 때 쓰세요.')) return;
+    if (!confirm(t('confirm.reset'))) return;
     await fetch('/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'all' }) });
     log.innerHTML = '';
     bubbles.clear();
@@ -943,8 +1169,9 @@
     rawText.clear();
     resetExpression();
     purchaseCounterEl.classList.remove('show');
-    document.getElementById('text').placeholder = '덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)';
-    systemNote('기억을 전부 초기화했어요.');
+    hasSentMessage = false;
+    document.getElementById('text').placeholder = t('placeholder.initial');
+    systemNote(t('chat.resetDone'));
     refreshMemoryPanel();
   };
 
@@ -957,7 +1184,7 @@
     span.textContent = text;
     const del = document.createElement('button');
     del.className = 'mem-del';
-    del.title = '삭제';
+    del.title = t('btn.delete');
     del.textContent = '✕';
     del.onclick = async () => { await onDelete(); await refreshMemoryPanel(); };
     li.append(span, del);
@@ -971,9 +1198,13 @@
     await fetch('/list/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ list, id }) });
   }
 
+  // 찜·보유·방문 Tool 직후와 답변 직후에 여러 번 겹쳐 불리므로, 가장 마지막 요청의 응답만 그린다.
+  let memoryPanelSeq = 0;
   async function refreshMemoryPanel() {
+    const seq = ++memoryPanelSeq;
     const res = await fetch('/state');
     const data = await res.json();
+    if (seq !== memoryPanelSeq) return;
     if (data.purchaseClicks > 0) showPurchaseCounter(data.purchaseClicks);
     const memoryList = document.getElementById('memory-list');
     memoryList.innerHTML = '';
@@ -981,12 +1212,12 @@
       const profile = document.createElement('div');
       profile.className = 'section';
       const p = data.preferences;
-      const tags = [p.favoriteGroup && `최애 그룹 ${p.favoriteGroup}`, p.favoriteMember && `최애 ${p.favoriteMember}`,
-        typeof p.budget === 'number' && `예산 ${won(p.budget)}`, (p.colors || []).length && `선호 색 ${p.colors.join(', ')}`,
-        p.sizeTop && `상의 ${p.sizeTop}`, p.sizeBottom && `하의 ${p.sizeBottom}`, p.sizeShoes && `신발 ${p.sizeShoes}`,
-        p.shoppingMode && `모드 ${p.shoppingMode === 'travel' ? '성지 중심' : p.shoppingMode === 'shopping' ? '쇼핑 중심' : '쇼핑·성지'}`,
-        p.language && `언어 ${p.language}`].filter(Boolean);
-      profile.textContent = '🧩 내 취향: ' + tags.join(' · ');
+      const tags = [p.favoriteGroup && t('profile.group', { v: p.favoriteGroup }), p.favoriteMember && t('profile.member', { v: p.favoriteMember }),
+        typeof p.budget === 'number' && t('profile.budget', { v: won(p.budget) }), (p.colors || []).length && t('profile.colors', { v: p.colors.join(', ') }),
+        p.sizeTop && t('profile.top', { v: p.sizeTop }), p.sizeBottom && t('profile.bottom', { v: p.sizeBottom }), p.sizeShoes && t('profile.shoes', { v: p.sizeShoes }),
+        p.shoppingMode && t('profile.mode', { v: t(p.shoppingMode === 'travel' ? 'mode.travel' : p.shoppingMode === 'shopping' ? 'mode.shopping' : 'mode.both') }),
+        p.language && t('profile.language', { v: p.language })].filter(Boolean);
+      profile.textContent = t('profile.title') + tags.join(' · ');
       memoryList.append(profile);
     }
     if (!data.memory || data.memory.length === 0) {
@@ -994,7 +1225,7 @@
       if (!data.preferences || Object.keys(data.preferences).length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = '아직 기억한 게 없어요.';
+        empty.textContent = t('panel.memEmpty');
         memoryList.append(empty);
       }
     } else {
@@ -1003,18 +1234,27 @@
       memoryList.append(ul);
     }
 
+    // 한 줄을 그리다 예외가 나도(가격 없는 아이템 등) 그 목록·다음 목록이 통째로 비지 않게, 줄 단위로 막는다.
     const fillList = (elId, listName, arr, render) => {
       const el = document.getElementById(elId);
       el.innerHTML = '';
       if (!arr || arr.length === 0) {
-        el.innerHTML = '<div class="empty">아직 없어요.</div>';
+        el.innerHTML = '';
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = t('panel.listEmpty');
+        el.append(empty);
         return;
       }
       const ul = document.createElement('ul');
-      for (const x of arr) ul.append(memRow(render(x), () => removeFromList(listName, x.id)));
+      for (const x of arr) {
+        let label;
+        try { label = render(x); } catch (err) { console.warn('기억 패널 항목 표시 실패:', x, err); label = x.name || x.id; }
+        ul.append(memRow(label, () => removeFromList(listName, x.id)));
+      }
       el.append(ul);
     };
-    fillList('wishlist-list', 'wishlist', data.wishlist, (i) => `${i.brand} ${i.name} (${won(i.price)})`);
+    fillList('wishlist-list', 'wishlist', data.wishlist, (i) => `${i.brand} ${i.name} (${priceLabel(i)})`);
     fillList('owned-list', 'owned', data.owned, (i) => `${i.brand} ${i.name}`);
     fillList('visited-list', 'visitedPlaces', data.visitedPlaces, (p) => p.name);
   }

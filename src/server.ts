@@ -53,6 +53,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - fanDataRoster에 있는 멤버를 "모른다", "그룹은 몰라"라고 하지 않는다. 같은 이름이 여러 그룹에 있을 때(또는 savePreferences가 needs_group을 돌려줄 때)만 candidateGroups 중 어느 그룹인지 물어본다.
 - fanDataRoster에 없는 멤버면 지어내지 말고, 그 멤버 정보는 아직 데이터에 없다고 솔직히 말한다.
 - 찜/구매/방문 기록은 별도 Tool로 변경해야 하며 단순히 기억했다고 말해서 기록을 조작하지 않는다.
+- 화면의 기억 패널("덕메가 기억하는 것")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
 
 [언어 — 국제 팬덤 대응]
 - 기본 응답 언어는 한국어다. 사용자가 다른 언어(영어·일본어·간체중국어·번체중국어 등)로 말하면 그 메시지에 쓴 언어 그대로 답한다. 해당 언어로 답해 달라고 명시하면 그 언어로 답한다. 번역은 시연 단계이며 전문 번역의 정확성을 확언하지 않는다.
@@ -99,6 +100,9 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - 메시지 안에 :happy:, :think:, :cheer:, :sorry: 마커를 자연스럽게 섞어서 덕메의 표정을 보여준다 (아래 markerGuide 참고).
 - 데이터에 없어서 "아직 확인되지 않은 정보예요"라고 답할 때는 꼭 :sorry: 를 쓴다.
 
+[내부 필드명 금지]
+- matchType, itemId, placeId, isOriginal, exact/similar/sample/source_only, item_096 같은 내부 필드명·값·id는 답변에 쓰지 않는다. "원래 제품(검수됨)", "유사 제품(팬 검수)"처럼 사람이 읽는 말과 실제 상품명·장소명으로 말한다.
+
 [응답 길이]
 - 채팅 화면에 맞게 보통 2~5문장 내로 답한다. 카드로 보여줄 아이템/코스 목록은 도구 결과가 화면에 따로 카드로 뜨니, 텍스트로 전부 나열하지 말고 요약만 해.`;
 
@@ -136,11 +140,15 @@ const agent = await croche.agent();
 const pages = new Set<ServerResponse>();
 // "기억 초기화"를 턴이 도는 도중에 누르면 memory.clear()는 그 턴이 끝난 뒤에 적용되고(DeferredWrite),
 // 그 사이 savePreferences가 예전 최애를 app-state에 다시 쓸 수 있다. 그래서 턴이 끝나면 한 번 더 비운다.
+// 지연은 턴이 도는 중일 때만 걸어 둔다 — 이미 쉬는 중이면 그 자리에서 끝났으니, 다음 일반 턴이 끝날 때
+// 찜·보유·방문을 지우는 일이 없어야 한다.
 let resetStateWhenIdle = false;
+let agentStatus: "idle" | "running" | "waiting" = "idle";
 const sendEvent = (res: ServerResponse, payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
 agent.subscribe({
   onEvent: (event: AgentEvent) => {
+    if (event.type === "state") agentStatus = event.status as typeof agentStatus;
     if (resetStateWhenIdle && event.type === "state" && event.status === "idle") {
       resetStateWhenIdle = false;
       void resetState(DEMO_USER).catch((error) => console.error("reset after turn failed:", error));
@@ -193,6 +201,8 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === "POST" && req.url === "/send") {
+      // 초기화 뒤 새 턴이 시작되면 예약해 둔 재초기화는 버린다(새 턴에서 찜한 걸 지우지 않게).
+      resetStateWhenIdle = false;
       const body = await readBody(req);
       const text = String(JSON.parse(body || "{}").text ?? "").trim().slice(0, 4000);
       if (!text) {
@@ -238,7 +248,7 @@ const server = createServer(async (req, res) => {
         const cleared = await agent.memory.clear();
         memoryDeferred = "deferred" in cleared;
         await resetState(DEMO_USER);
-        if (memoryDeferred) resetStateWhenIdle = true;
+        if (memoryDeferred && agentStatus !== "idle") resetStateWhenIdle = true;
       }
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, scope, memoryDeferred }));
       return;
