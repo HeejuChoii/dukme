@@ -16,7 +16,7 @@ import { loadAliases, loadItems, loadPlaces, type Item } from "./data.js";
 import { diagnoseItemPreview, getMediaPreview } from "./mediaPreview.js";
 import { buildPersonalContext } from "./personalContext.js";
 import { extractExplicitPreferences } from "./explicitPreferences.js";
-import { buildFavoriteCatalog, detectFavoriteInText, mergeFavorite, rosterSummary } from "./favorite.js";
+import { applyFavoriteChange, buildFavoriteCatalog, favoritesLabel, noteFavoriteChange, rosterSummary, type FavoriteApplyResult } from "./favorite.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const { CROCHE_PROJECT_KEY, CROCHE_DEBUG_KEY, PORT = "3000", HOST = "0.0.0.0" } = process.env;
@@ -43,16 +43,18 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 
 [새 대화 이후에도 이어지는 기억 — 중요]
 - 매 메시지에는 별도 context로 현재 저장된 personalProfile, crocheLongTermMemories, wishlist, ownedItems, visitedPlaces가 전달된다. 이는 앱의 실제 저장 정보다.
-- personalProfile.favoriteGroup/favoriteMember/budget이 있으면 사용자가 새 대화에서 "최애가 누구야?", "예산 기억해?"라고 물어도 이 값을 정확히 답한다. 새 대화라고 정보를 잊었다고 하지 않는다.
+- personalProfile.favorites(최애 목록 — 여러 명일 수 있다, 앞이 우선)/budget이 있으면 사용자가 새 대화에서 "최애가 누구야?", "예산 기억해?"라고 물어도 이 값을 정확히 답한다. 최애가 여러 명이면 전부 말한다. 새 대화라고 정보를 잊었다고 하지 않는다.
 - 현재 구조화된 personalProfile을 다른 과거 기억보다 우선한다. 없는 정보는 추측하지 않는다.
 
 [최애 그룹·멤버 — 데이터 먼저 확인]
 - 매 메시지 context의 fanDataRoster에 "그룹: 멤버 목록"이 들어 있다. 이게 우리 데이터에 있는 그룹·멤버 전부다.
 - 사용자가 멤버 이름만 말하면(예: "내 최애는 사쿠야야", "나 원영이 최애야") "어느 그룹이야?"라고 되묻기 전에 fanDataRoster에서 그 멤버의 그룹을 먼저 찾는다. 한 그룹에만 있으면 그 그룹으로 알고 말하고, savePreferences에 favoriteGroup과 favoriteMember를 같이 보낸다. 성을 뺀 이름("원영")은 데이터의 정식 이름("장원영")으로 맞춘다.
+- 최애는 여러 명 저장된다. savePreferences의 favoriteMode로 구분한다: "~도 있어", "~도 좋아", "또", "추가" → add / "최애 바뀌었어", "이제 ~만", "~로 갈아탔어" → replace / "~는 이제 아니야", "빼줘" → remove. 애매하면 add. 새 최애를 말했다고 예전 최애를 지우지 않는다.
 - 예전에 저장된 최애 그룹을 새 멤버에 그냥 붙이지 않는다. 사쿠야는 NCT WISH 멤버이지 IVE 멤버가 아니다 — 멤버의 그룹은 항상 fanDataRoster를 따른다.
 - fanDataRoster에 있는 멤버를 "모른다", "그룹은 몰라"라고 하지 않는다. 같은 이름이 여러 그룹에 있을 때(또는 savePreferences가 needs_group을 돌려줄 때)만 candidateGroups 중 어느 그룹인지 물어본다.
 - fanDataRoster에 없는 멤버면 지어내지 말고, 그 멤버 정보는 아직 데이터에 없다고 솔직히 말한다.
 - 찜/구매/방문 기록은 별도 Tool로 변경해야 하며 단순히 기억했다고 말해서 기록을 조작하지 않는다.
+- 저장했다고 말하기 전에 저장 Tool 결과(savePreferences의 favorites.nowSaved·added·removed·note, context의 favoriteChangeThisTurn)를 확인하고, 실제로 저장·삭제된 내용만 말한다. 저장이 안 됐거나(needs_group, ignored, favoriteNotSaved) 일부만 됐으면 그대로 솔직히 말한다. 예: 태산과 카리나가 둘 다 nowSaved에 있을 때만 "둘 다 챙길게"라고 말한다.
 - 화면의 기억 패널("덕메가 기억하는 것")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
 
 [언어 — 국제 팬덤 대응]
@@ -82,7 +84,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - findAlternative: searchItem으로 찾은 **원래 제품이 예산을 넘을 때만** 쓴다. 검색 결과가 여러 개여도 대표 아이템 1개에 대해서만 호출한다(아이템마다 전부 부르지 않는다). 대체템을 못 찾았으면 그 사실을 한 번만 말하고, 같은 턴 안에서 "대체템을 못 찾았다"는 말을 반복하지 않는다.
 - addWishlist: 사용자가 특정 아이템을 "찜", "할래", "A로 할래" 등 명확히 고를 때만 호출.
 - findPlaces: 사용자가 "~가 간 곳 알려줘"처럼 성지를 물었는데 **지역을 말하지 않았을 때** 가장 먼저 쓴다. group/member만으로 전국을 한 번에 찾아서 지역별 개수로 묶어 돌려준다(예: 목포 9곳, 전주 4곳). 서울→부산→대구처럼 지역을 하나씩 추측해서 planRoute를 여러 번 부르지 않는다 — 그건 느리고 틀리기 쉽다. findPlaces로 지역별 개수를 먼저 보여주고 "어디로 짜줄까?"처럼 고르게 하거나, 사용자가 "아무 데나"/"가까운 데" 식으로 말하면 (hasFavoriteMemberVisit가 true인 지역 중, 그중) 가장 개수가 많은 지역으로 바로 planRoute를 호출한다.
-- planRoute: 지역이 정해졌을 때(사용자가 말했거나, findPlaces 결과에서 골랐을 때) 실제 코스를 짠다. 이미 다녀온 곳은 자동으로 빠지고, 사용자가 찜한 아이템의 브랜드 매장이 있으면 코스에 포함돼. 같은 턴에 addWishlist도 같이 호출했다면, 방금 찜한 그 itemId를 planRoute의 itemIds에도 꼭 같이 넘겨줘 (저장 순서에 상관없이 브랜드 매장이 코스에 바로 반영되게). 사용자의 최애 멤버를 기억하고 있다면(기억 패널/메모리에 있는 그 멤버) planRoute의 member 플래그에 꼭 같이 넘겨줘 — 최애가 실제로 다녀간 성지를 코스에서 가장 먼저 넣기 위함이다. area에는 "한국"/"전국"처럼 지역 필터가 없는 값도 쓸 수 있지만, 보통은 findPlaces로 고른 지역 하나를 넣는다. "이틀 코스"/"1박 2일"처럼 여러 날이면 days에 날 수를 넣어서 **한 번만** 호출한다 (하루치씩 따로 여러 번 부르지 않는다) — 날마다 다른 장소로 자동으로 나뉘고 시간도 10~21시 안에서 짜진다.
+- planRoute: 지역이 정해졌을 때(사용자가 말했거나, findPlaces 결과에서 골랐을 때) 실제 코스를 짠다. 이미 다녀온 곳은 자동으로 빠지고, 사용자가 찜한 아이템의 브랜드 매장이 있으면 코스에 포함돼. 같은 턴에 addWishlist도 같이 호출했다면, 방금 찜한 그 itemId를 planRoute의 itemIds에도 꼭 같이 넘겨줘 (저장 순서에 상관없이 브랜드 매장이 코스에 바로 반영되게). 사용자가 이번에 특정 멤버·그룹을 말했으면 planRoute의 member/group에 넘기고, 말하지 않았으면 비워 둔다 — 비워 두면 Tool이 저장된 최애 전체(앞 순서 우선)가 다녀간 성지를 코스에서 가장 먼저 넣는다. searchItem·findPlaces도 멤버·그룹을 정하지 않으면 저장된 최애 전체를 기준으로 찾는다. area에는 "한국"/"전국"처럼 지역 필터가 없는 값도 쓸 수 있지만, 보통은 findPlaces로 고른 지역 하나를 넣는다. "이틀 코스"/"1박 2일"처럼 여러 날이면 days에 날 수를 넣어서 **한 번만** 호출한다 (하루치씩 따로 여러 번 부르지 않는다) — 날마다 다른 장소로 자동으로 나뉘고 시간도 10~21시 안에서 짜진다.
 - updateOwned: 사용자가 "샀어", "샀다", "구매했어" 처럼 실제로 구매했다고 명확히 말했을 때만 호출. 찜(위시리스트)에 있던 거면 보유로 넘어가고 위시리스트에서는 빠진다.
 - markVisited: 사용자가 "다녀왔어", "갔다 왔어" 처럼 실제로 다녀왔다고 말했을 때 호출. placeIds는 대화에서 이미 planRoute로 짜줬던 코스의 placeId들을 그대로 넘긴다 (사용자가 장소 id를 직접 말하지 않아도, 방금 짜준 코스를 기억해서 넘긴다).
 - 이 여덟 가지 도구가 지금 가진 전부야. 여기 없는 기능을 요청하면 지어내지 말고 솔직하게 아직 안 된다고 답해.
@@ -222,21 +224,31 @@ const server = createServer(async (req, res) => {
       const explicit = extractExplicitPreferences(text, items, aliases, catalog);
       // Croche가 savePreferences를 생략한 턴에도 '내 최애는 사쿠야, 예산은 5만 원'
       // 처럼 사용자가 분명히 직접 말한 사실만 앱에 안전하게 보존한다.
-      if (Object.keys(explicit).length) {
-        // 최애 병합 규칙은 savePreferences Tool과 같다(src/favorite.ts): 멤버로 그룹이 정해지면 예전 그룹을 덮어쓰고,
-        // 그룹만 바뀌면 새 그룹에 없는 예전 멤버를 지운다.
-        const { favoriteGroup, favoriteMember, ...rest } = explicit;
-        await updateState(DEMO_USER, state => {
-          state.preferences = mergeFavorite({ ...state.preferences, ...rest }, { favoriteGroup, favoriteMember }, catalog);
+      const { favorite, ...rest } = explicit;
+      let favoriteApplied: FavoriteApplyResult | null = null;
+      if (Object.keys(rest).length || favorite?.entries.length) {
+        // 최애 추가/교체/삭제 규칙은 savePreferences Tool과 같다(src/favorite.ts applyFavoriteChange).
+        favoriteApplied = await updateState(DEMO_USER, state => {
+          const applied = favorite ? applyFavoriteChange(state.preferences.favorites, favorite.mode, favorite.entries) : null;
+          state.preferences = { ...state.preferences, ...rest };
+          if (applied) {
+            if (applied.favorites.length) state.preferences.favorites = applied.favorites;
+            else delete state.preferences.favorites;
+          }
+          return applied;
         });
+        if (favoriteApplied) noteFavoriteChange(DEMO_USER, favoriteApplied);
       }
       const appState = await readState(DEMO_USER);
-      const favoriteInText = /최애/.test(text) ? detectFavoriteInText(text, catalog) : { status: "none" as const };
       const context = {
         ...buildPersonalContext(appState, agent.memory.list(), items, places),
         fanDataRoster: rosterSummary(catalog),
-        ...(favoriteInText.status === "ambiguous"
-          ? { favoriteNeedsGroup: { member: favoriteInText.member, candidateGroups: favoriteInText.candidateGroups, note: "같은 이름이 여러 그룹에 있어 최애를 저장하지 않았다. 어느 그룹인지 물어본다." } }
+        // 이번 메시지에서 앱이 이미 반영한 최애 변경. 덕메는 이걸 기준으로 실제 저장된 것만 말한다.
+        ...(favoriteApplied && (favoriteApplied.added.length || favoriteApplied.removed.length)
+          ? { favoriteChangeThisTurn: { mode: favorite!.mode, added: favoritesLabel(favoriteApplied.added), removed: favoritesLabel(favoriteApplied.removed), nowSaved: favoritesLabel(favoriteApplied.favorites) || "(없음)" } }
+          : {}),
+        ...(favorite?.ambiguous.length
+          ? { favoriteNeedsGroup: { ambiguous: favorite.ambiguous, note: "같은 이름이 여러 그룹에 있어 이 최애는 저장하지 않았다. 어느 그룹인지 물어본다." } }
           : {}),
       };
       const receipt = await agent.send({ id: randomUUID(), text, context });
@@ -270,6 +282,27 @@ const server = createServer(async (req, res) => {
       }
       const outcome = await agent.memory.delete(id);
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, outcome }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/favorite/remove") {
+      // 기억 패널의 최애 ✕: 그 최애 하나만 지운다(멤버면 그 멤버, 그룹만 저장된 항목이면 그 그룹).
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { group?: unknown; member?: unknown };
+      const entry = {
+        ...(typeof payload.group === "string" && payload.group.trim() ? { group: payload.group.trim() } : {}),
+        ...(typeof payload.member === "string" && payload.member.trim() ? { member: payload.member.trim() } : {}),
+      };
+      if (!entry.group && !entry.member) {
+        res.writeHead(400).end();
+        return;
+      }
+      const favorites = await updateState(DEMO_USER, (state) => {
+        const applied = applyFavoriteChange(state.preferences.favorites, "remove", [entry]);
+        if (applied.favorites.length) state.preferences.favorites = applied.favorites;
+        else delete state.preferences.favorites;
+        return applied.favorites;
+      });
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, favorites }));
       return;
     }
     if (req.method === "POST" && req.url === "/list/remove") {

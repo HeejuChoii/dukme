@@ -2,9 +2,10 @@ import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadItems, loadPlaces, loadAliases, type Place } from "../data.js";
 import { readState } from "../state.js";
 import { emitCard, dedupeKeyFor } from "../bus.js";
-import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
+import { norm, fieldMatches } from "../aliasMatch.js";
 import { placeMatchesArea } from "../geo.js";
 import { orderByProximity } from "../routeOrder.js";
+import { favoriteTargets, groupVisitIndex, memberVisitIndex } from "./favoriteTargets.js";
 
 const DAY_START_MIN = 10 * 60;
 const DAY_END_MIN = 21 * 60;
@@ -143,38 +144,22 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
 
   // 우선순위: ① 최애 멤버가 실제로 다녀간 곳(단체 방문도 그룹이 맞으면 포함) ② 같은 그룹 멤버가 다녀간 곳
   // ③ 성지(isFandomSpot)이거나 착용 브랜드 매장 ④ 그 외 일반 명소(자리가 남을 때만).
-  let favoriteMember = norm(args.member as string | undefined);
-  let favoriteGroupArg = norm(args.group as string | undefined);
-  // "위시"처럼 그룹 별명을 member 자리에 넣는 경우가 있어서, 실제 멤버로 안 풀리면 그룹 별명인지 먼저 확인한다.
-  if (favoriteMember && !items.some((item) => fieldMatches(item.member, favoriteMember, aliases.members))) {
-    const asGroup = resolveGroupAlias(favoriteMember, aliases.groups);
-    if (asGroup) {
-      favoriteGroupArg = favoriteGroupArg || norm(asGroup);
-      favoriteMember = "";
-    }
-  }
-  const favoriteGroup =
-    favoriteGroupArg ||
-    (favoriteMember ? norm(items.find((item) => fieldMatches(item.member, favoriteMember, aliases.members))?.group) : "");
+  // 최애: 사용자가 이번에 멤버·그룹을 말했으면 그 하나, 아니면 저장된 최애 전체(앞 순서 우선).
+  const { targets } = favoriteTargets(args, state.preferences.favorites, items, aliases);
+  const memberIndex = (place: Place) => memberVisitIndex(place, targets, aliases);
+  const groupIndex = (place: Place) => groupVisitIndex(place, targets, aliases);
+  const memberVisitMatch = (place: Place): boolean => memberIndex(place) >= 0;
+  const groupVisitMatch = (place: Place): boolean => groupIndex(place) >= 0;
 
   // 라벨용 실제 이름: 최애 멤버는 데이터의 정식 이름, 그룹은 그 장소 방문 기록에 적힌 그룹명.
-  const favoriteMemberName = favoriteMember
-    ? items.find((item) => item.member !== "단체" && fieldMatches(item.member, favoriteMember, aliases.members))?.member ?? null
-    : null;
   const visitLabel = (place: Place, kind: "member" | "group") => {
+    const target = targets[kind === "member" ? memberIndex(place) : groupIndex(place)];
+    if (!target) return null;
     const name = kind === "member"
-      ? favoriteMemberName
-      : place.visits.find((v) => fieldMatches(v.group, favoriteGroup, aliases.groups))?.group ?? null;
+      ? target.memberName
+      : place.visits.find((v) => fieldMatches(v.group, target.group, aliases.groups))?.group ?? null;
     return name ? { kind, name, nameKo: koreanName(name, kind === "member" ? aliases.members : aliases.groups) } : null;
   };
-
-  const groupVisitMatch = (place: Place): boolean =>
-    Boolean(favoriteGroup) && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups));
-  const memberVisitMatch = (place: Place): boolean =>
-    Boolean(favoriteMember) &&
-    place.visits.some((v) =>
-      v.member === "단체" ? Boolean(favoriteGroup) && fieldMatches(v.group, favoriteGroup, aliases.groups) : fieldMatches(v.member, favoriteMember, aliases.members),
-    );
 
   // KSPO DOME류의 다목적 장소(여러 그룹이 섞여 있음)는 최애 전용 성지처럼 최우선으로 뽑히면 안 된다.
   const isSharedVenue = (place: Place): boolean => visitGroups(place).length > 1;
@@ -186,9 +171,19 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     return 1;
   };
 
+  // 같은 점수면 앞 순서 최애가 다녀간 곳 먼저.
+  const favoriteOrder = (place: Place): number => {
+    if (isSharedVenue(place)) return targets.length;
+    const m = memberIndex(place);
+    if (m >= 0) return m;
+    const g = groupIndex(place);
+    return g >= 0 ? g : targets.length;
+  };
   const ranked = [...unvisited].sort((a, b) => {
     const scoreDiff = visitScore(b) - visitScore(a);
     if (scoreDiff !== 0) return scoreDiff;
+    const orderDiff = favoriteOrder(a) - favoriteOrder(b);
+    if (orderDiff !== 0) return orderDiff;
     return typeRank(a.type) - typeRank(b.type);
   });
 
@@ -224,7 +219,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
         isFavoriteGroupVisit: !isSharedVenue(place) && !memberVisitMatch(place) && groupVisitMatch(place),
         // 멤버 기록이 있으면 멤버 이름, 멤버 기록 없이 그룹 기록만 있으면 그룹 이름.
         visitLabel: isSharedVenue(place) ? null
-          : memberVisitMatch(place) && favoriteMemberName ? visitLabel(place, "member")
+          : memberVisitMatch(place) && targets[memberIndex(place)]?.memberName ? visitLabel(place, "member")
           : groupVisitMatch(place) ? visitLabel(place, "group") : null,
         mustTry: place.mustTry,
         mustTryLabel: mustTryLabel(place),

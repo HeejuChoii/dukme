@@ -258,6 +258,10 @@
   }
   #memory-col .mem-del:hover { color: #c0392b; }
   #memory-col .empty { font-size: .78rem; color: var(--muted); }
+  /* 최애 여러 명: "최애: BOYNEXTDOOR 태산 ✕ · 이한 ✕ · aespa 카리나 ✕" — 각각 지울 수 있다. */
+  #memory-col .fav-line { font-size: .82rem; margin-bottom: .3rem; line-height: 1.7; }
+  #memory-col .fav-chip { display: inline-flex; align-items: center; gap: .1rem; white-space: nowrap; }
+  #memory-col .fav-chip .mem-del { padding: 0 .15rem; }
 </style>
 
 <div class="phone-shell">
@@ -352,7 +356,7 @@
       'chat.resetDone': '기억을 전부 초기화했어요.',
       'panel.title': '덕메가 기억하는 것', 'panel.wishlist': '찜한 아이템', 'panel.owned': '보유 아이템', 'panel.visited': '다녀온 성지',
       'panel.memEmpty': '아직 기억한 게 없어요.', 'panel.listEmpty': '아직 없어요.', 'btn.delete': '삭제',
-      'profile.title': '🧩 내 취향: ', 'profile.group': '최애 그룹 {v}', 'profile.member': '최애 {v}', 'profile.budget': '예산 {v}',
+      'profile.favorites': '💜 최애', 'profile.title': '🧩 내 취향: ', 'profile.group': '최애 그룹 {v}', 'profile.member': '최애 {v}', 'profile.budget': '예산 {v}',
       'profile.colors': '선호 색 {v}', 'profile.top': '상의 {v}', 'profile.bottom': '하의 {v}', 'profile.shoes': '신발 {v}',
       'profile.mode': '모드 {v}', 'mode.travel': '성지 중심', 'mode.shopping': '쇼핑 중심', 'mode.both': '쇼핑·성지', 'profile.language': '언어 {v}',
     },
@@ -385,7 +389,7 @@
       'chat.resetDone': 'All memory has been reset.',
       'panel.title': 'What Dukme remembers', 'panel.wishlist': 'Wishlist', 'panel.owned': 'Owned items', 'panel.visited': 'Visited spots',
       'panel.memEmpty': "Nothing remembered yet.", 'panel.listEmpty': 'Nothing yet.', 'btn.delete': 'Delete',
-      'profile.title': '🧩 My taste: ', 'profile.group': 'Fave group {v}', 'profile.member': 'Bias {v}', 'profile.budget': 'Budget {v}',
+      'profile.favorites': '💜 Faves', 'profile.title': '🧩 My taste: ', 'profile.group': 'Fave group {v}', 'profile.member': 'Bias {v}', 'profile.budget': 'Budget {v}',
       'profile.colors': 'Colors {v}', 'profile.top': 'Top {v}', 'profile.bottom': 'Bottom {v}', 'profile.shoes': 'Shoes {v}',
       'profile.mode': 'Mode {v}', 'mode.travel': 'Fan spots', 'mode.shopping': 'Shopping', 'mode.both': 'Shopping & spots', 'profile.language': 'Language {v}',
     },
@@ -418,7 +422,7 @@
       'chat.resetDone': '記憶をすべてリセットしました。',
       'panel.title': 'ドクメが覚えていること', 'panel.wishlist': 'お気に入り', 'panel.owned': '持っているアイテム', 'panel.visited': '行った聖地',
       'panel.memEmpty': 'まだ何も覚えていません。', 'panel.listEmpty': 'まだありません。', 'btn.delete': '削除',
-      'profile.title': '🧩 わたしの好み: ', 'profile.group': '推しグループ {v}', 'profile.member': '推し {v}', 'profile.budget': '予算 {v}',
+      'profile.favorites': '💜 推し', 'profile.title': '🧩 わたしの好み: ', 'profile.group': '推しグループ {v}', 'profile.member': '推し {v}', 'profile.budget': '予算 {v}',
       'profile.colors': '好きな色 {v}', 'profile.top': 'トップス {v}', 'profile.bottom': 'ボトムス {v}', 'profile.shoes': '靴 {v}',
       'profile.mode': 'モード {v}', 'mode.travel': '聖地中心', 'mode.shopping': 'ショッピング中心', 'mode.both': 'ショッピング・聖地', 'profile.language': '言語 {v}',
     },
@@ -451,7 +455,7 @@
       'chat.resetDone': '已重置全部记忆。',
       'panel.title': 'Dukme 记得的事', 'panel.wishlist': '心愿单', 'panel.owned': '已拥有', 'panel.visited': '去过的圣地',
       'panel.memEmpty': '还没有记住任何事。', 'panel.listEmpty': '还没有。', 'btn.delete': '删除',
-      'profile.title': '🧩 我的喜好: ', 'profile.group': '本命团 {v}', 'profile.member': '本命 {v}', 'profile.budget': '预算 {v}',
+      'profile.favorites': '💜 本命', 'profile.title': '🧩 我的喜好: ', 'profile.group': '本命团 {v}', 'profile.member': '本命 {v}', 'profile.budget': '预算 {v}',
       'profile.colors': '喜欢的颜色 {v}', 'profile.top': '上衣 {v}', 'profile.bottom': '下装 {v}', 'profile.shoes': '鞋 {v}',
       'profile.mode': '模式 {v}', 'mode.travel': '圣地为主', 'mode.shopping': '购物为主', 'mode.both': '购物·圣地', 'profile.language': '语言 {v}',
     },
@@ -484,7 +488,7 @@
       'chat.resetDone': '已重置全部記憶。',
       'panel.title': 'Dukme 記得的事', 'panel.wishlist': '願望清單', 'panel.owned': '已擁有', 'panel.visited': '去過的聖地',
       'panel.memEmpty': '還沒有記住任何事。', 'panel.listEmpty': '還沒有。', 'btn.delete': '刪除',
-      'profile.title': '🧩 我的喜好: ', 'profile.group': '本命團 {v}', 'profile.member': '本命 {v}', 'profile.budget': '預算 {v}',
+      'profile.favorites': '💜 本命', 'profile.title': '🧩 我的喜好: ', 'profile.group': '本命團 {v}', 'profile.member': '本命 {v}', 'profile.budget': '預算 {v}',
       'profile.colors': '喜歡的顏色 {v}', 'profile.top': '上衣 {v}', 'profile.bottom': '下身 {v}', 'profile.shoes': '鞋 {v}',
       'profile.mode': '模式 {v}', 'mode.travel': '聖地為主', 'mode.shopping': '購物為主', 'mode.both': '購物·聖地', 'profile.language': '語言 {v}',
     },
@@ -1278,13 +1282,41 @@
       const profile = document.createElement('div');
       profile.className = 'section';
       const p = data.preferences;
-      const tags = [p.favoriteGroup && t('profile.group', { v: p.favoriteGroup }), p.favoriteMember && t('profile.member', { v: p.favoriteMember }),
+      const favorites = (p.favorites || []).filter((f) => f && (f.group || f.member));
+      if (favorites.length) {
+        const line = document.createElement('div');
+        line.className = 'fav-line';
+        line.append(t('profile.favorites') + ': ');
+        favorites.forEach((f, i) => {
+          if (i > 0) line.append(' · ');
+          const chip = document.createElement('span');
+          chip.className = 'fav-chip';
+          // 같은 그룹 멤버가 이어지면 그룹명은 처음 한 번만 ("BOYNEXTDOOR 태산 · 이한").
+          const sameGroupAsPrev = i > 0 && f.group && favorites[i - 1].group === f.group && f.member;
+          chip.append([sameGroupAsPrev ? '' : f.group, f.member].filter(Boolean).join(' '));
+          const del = document.createElement('button');
+          del.className = 'mem-del';
+          del.title = t('btn.delete');
+          del.setAttribute('aria-label', `${t('btn.delete')}: ${[f.group, f.member].filter(Boolean).join(' ')}`);
+          del.textContent = '✕';
+          del.onclick = async () => {
+            await fetch('/favorite/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ group: f.group, member: f.member }) });
+            await refreshMemoryPanel();
+          };
+          chip.append(del);
+          line.append(chip);
+        });
+        memoryList.append(line);
+      }
+      const tags = [
         typeof p.budget === 'number' && t('profile.budget', { v: won(p.budget) }), (p.colors || []).length && t('profile.colors', { v: p.colors.join(', ') }),
         p.sizeTop && t('profile.top', { v: p.sizeTop }), p.sizeBottom && t('profile.bottom', { v: p.sizeBottom }), p.sizeShoes && t('profile.shoes', { v: p.sizeShoes }),
         p.shoppingMode && t('profile.mode', { v: t(p.shoppingMode === 'travel' ? 'mode.travel' : p.shoppingMode === 'shopping' ? 'mode.shopping' : 'mode.both') }),
         p.language && t('profile.language', { v: p.language })].filter(Boolean);
-      profile.textContent = t('profile.title') + tags.join(' · ');
-      memoryList.append(profile);
+      if (tags.length) {
+        profile.textContent = t('profile.title') + tags.join(' · ');
+        memoryList.append(profile);
+      }
     }
     if (!data.memory || data.memory.length === 0) {
       // Croche 자연어 기억이 비어 있어도 앱의 구조화된 최애·예산은 지우지 않는다.

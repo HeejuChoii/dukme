@@ -4,14 +4,13 @@ import type { AppState } from '../src/state.js';
 import type { Item, Place } from '../src/data.js';
 
 const state: AppState = {
-  preferences: { favoriteGroup: 'NCT WISH', favoriteMember: '사쿠야', budget: 50000 },
+  preferences: { favorites: [{ group: 'NCT WISH', member: '사쿠야' }, { group: 'aespa', member: '카리나' }], budget: 50000 },
   wishlist: ['item_013'], owned: [], visitedPlaces: ['place_001'], purchaseClicks: 0,
 };
 const item = { id: 'item_013', group: 'NCT WISH', member: '사쿠야', brand: '엄브로', name: '사이드 다이아 트랙 자켓' } as Item;
 const place = { id: 'place_001', name: '목포 성지', region: '전남' } as Place;
 const context = buildPersonalContext(state, [], [item], [place]);
-assert.equal(context.personalProfile.favoriteGroup, 'NCT WISH');
-assert.equal(context.personalProfile.favoriteMember, '사쿠야');
+assert.deepEqual(context.personalProfile.favorites, [{ group: 'NCT WISH', member: '사쿠야' }, { group: 'aespa', member: '카리나' }]);
 assert.equal(context.personalProfile.budget, 50000);
 assert.equal(context.wishlist[0].id, 'item_013');
 assert.equal(context.visitedPlaces[0].name, '목포 성지');

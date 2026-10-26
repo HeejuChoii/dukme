@@ -39,3 +39,15 @@ assert.equal(extractWikiPreview(`<script>{"image":"https://cdn.sonminsoo.kr/m/me
 
 assert.match(diagnoseWikiHtml(`<html><head>${OG}</head><body><div id="root"></div></body></html>`, base).reason, /클라이언트 렌더링/);
 console.log('PASS: 손민수위키 제품 사진만 고르고 og:image(멤버 합성)는 쓰지 않음');
+
+// item.imageUrl이 있으면 페이지를 읽지 않고 바로 쓴다 (https 절대 주소만)
+{
+  const { getMediaPreview } = await import('../src/mediaPreview.js');
+  const base = { wikiUrl: null, matchType: 'exact' } as any;
+  const ok = await getMediaPreview('item', 't_ok', { ...base, id: 't_ok', imageUrl: 'https://hhyaidumvkylewdgojnu.supabase.co/storage/v1/object/public/question-images/answers/x.jpg' });
+  assert.deepEqual(ok, { imageUrl: 'https://hhyaidumvkylewdgojnu.supabase.co/storage/v1/object/public/question-images/answers/x.jpg', kind: 'photo', source: 'sonminsoo' });
+  assert.equal(await getMediaPreview('item', 't_http', { ...base, id: 't_http', imageUrl: 'http://example.com/a.jpg' }), null);
+  assert.equal(await getMediaPreview('item', 't_rel', { ...base, id: 't_rel', imageUrl: '/a.jpg' }), null);
+  assert.equal(await getMediaPreview('item', 't_logo', { ...base, id: 't_logo', imageUrl: 'https://cdn.example.com/logo.png' }), null);
+  console.log('PASS: item.imageUrl 바로 사용(https 절대 주소만)');
+}

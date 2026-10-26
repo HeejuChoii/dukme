@@ -27,7 +27,11 @@ export function buildPersonalContext(
   return {
     kind: 'dukme_saved_user_context',
     note: '앱에서 저장한 현재 사용자 정보다. 새 대화를 시작해도 유지된다. 아래 personalProfile을 과거 대화의 다른 취향보다 우선한다. 사용자 질문에 직접 답하고, 정보를 지어내지 않는다.',
-    personalProfile: { ...state.preferences },
+    // favorites: 최애 목록(여러 명 가능, 앞이 우선). 예: [{ group: 'BOYNEXTDOOR', member: '태산' }, { group: 'aespa', member: '카리나' }]
+    personalProfile: {
+      ...state.preferences,
+      favorites: (state.preferences.favorites ?? []).map((f) => ({ ...f }) as Record<string, string>),
+    },
     crocheLongTermMemories: memory.map(m => m.text).filter(Boolean).slice(-25),
     wishlist: state.wishlist.map(itemLabel),
     ownedItems: state.owned.map(itemLabel),

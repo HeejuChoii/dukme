@@ -11,9 +11,15 @@ import { randomUUID } from "node:crypto";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stateDir = path.join(here, "..", "app-state");
 
+// 최애는 여러 명일 수 있다 (예: BOYNEXTDOOR 태산 + aespa 카리나). 그룹만 좋아하면 member 없이,
+// 데이터에 없는 멤버면 group 없이 저장될 수 있다. 앞에 있을수록 우선(검색·코스 기본값).
+export interface FavoriteEntry {
+  group?: string;
+  member?: string;
+}
+
 export interface FanPreferences {
-  favoriteGroup?: string;
-  favoriteMember?: string;
+  favorites?: FavoriteEntry[];
   budget?: number;
   colors?: string[];
   sizeTop?: string;
@@ -29,6 +35,22 @@ export interface AppState {
   visitedPlaces: string[]; // place ids
   preferences: FanPreferences;
   purchaseClicks: number; // "사러 가기" 클릭 수 (데모용 카운터)
+}
+
+// 예전 형식(favoriteGroup/favoriteMember 하나씩)으로 저장된 app-state도 그대로 읽히게 favorites로 바꾼다.
+// 다음에 저장할 때 새 형식으로만 쓰인다.
+export function migratePreferences(raw: unknown): FanPreferences {
+  if (!raw || typeof raw !== "object") return {};
+  const { favoriteGroup, favoriteMember, ...rest } = raw as FanPreferences & { favoriteGroup?: unknown; favoriteMember?: unknown };
+  const preferences: FanPreferences = { ...rest };
+  if (!Array.isArray(preferences.favorites)) {
+    delete preferences.favorites;
+    const legacy: FavoriteEntry = {};
+    if (typeof favoriteGroup === "string" && favoriteGroup.trim()) legacy.group = favoriteGroup.trim();
+    if (typeof favoriteMember === "string" && favoriteMember.trim()) legacy.member = favoriteMember.trim();
+    if (legacy.group || legacy.member) preferences.favorites = [legacy];
+  }
+  return preferences;
 }
 
 function emptyState(): AppState {
@@ -48,7 +70,7 @@ export async function readState(user: string): Promise<AppState> {
       owned: parsed.owned ?? [],
       visitedPlaces: parsed.visitedPlaces ?? [],
       purchaseClicks: parsed.purchaseClicks ?? 0,
-      preferences: parsed.preferences ?? {},
+      preferences: migratePreferences(parsed.preferences),
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyState();

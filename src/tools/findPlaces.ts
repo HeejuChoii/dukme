@@ -1,7 +1,8 @@
 import type { ToolDeclaration, ToolHandler, JsonValue } from "@h1r-ai/croche";
 import { loadPlaces, loadAliases, loadItems, type Place } from "../data.js";
 import { emitCard, dedupeKeyFor } from "../bus.js";
-import { norm, fieldMatches, resolveGroupAlias } from "../aliasMatch.js";
+import { readState } from "../state.js";
+import { favoriteTargets, groupVisitIndex, memberVisitIndex } from "./favoriteTargets.js";
 import { placeMatchesArea, regionBucket } from "../geo.js";
 
 export const findPlacesDeclaration: ToolDeclaration = {
@@ -31,42 +32,25 @@ export const findPlacesHandler: ToolHandler = async (invocation, context) => {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
   }
   const args = invocation.args as Record<string, unknown>;
-  let group = norm(args.group as string | undefined);
-  let member = norm(args.member as string | undefined);
   const area = String(args.area ?? "").trim();
 
-  const [places, aliases, items] = await Promise.all([loadPlaces(), loadAliases(), loadItems()]);
+  const [places, aliases, items, state] = await Promise.all([loadPlaces(), loadAliases(), loadItems(), readState(context.user ?? "demo-user")]);
 
-  // "위시"처럼 그룹 별명을 member 자리에 넣는 경우가 있어서, member가 실제 멤버로 안 풀리면
-  // 그룹 별명인지 먼저 확인한다.
-  if (member && !items.some((item) => fieldMatches(item.member, member, aliases.members))) {
-    const asGroup = resolveGroupAlias(member, aliases.groups);
-    if (asGroup) {
-      group = group || norm(asGroup);
-      member = "";
-    }
+  // 멤버·그룹을 말했으면 그 하나, 아니면 저장된 최애 전체(앞 순서 우선)로 찾는다.
+  const { targets, fromSaved } = favoriteTargets(args, state.preferences.favorites, items, aliases);
+  if (!targets.length) {
+    return { status: "rejected", reason: "group이나 member 중 하나는 있어야 해요. (저장된 최애도 없어요)" };
   }
-
-  const favoriteGroup =
-    group || (member ? norm(items.find((item) => fieldMatches(item.member, member, aliases.members))?.group) : "");
-
-  const memberVisitMatch = (place: Place) =>
-    Boolean(member) &&
-    place.visits.some((v) =>
-      v.member === "단체" ? Boolean(favoriteGroup) && fieldMatches(v.group, favoriteGroup, aliases.groups) : fieldMatches(v.member, member, aliases.members),
-    );
-  const groupVisitMatch = (place: Place) =>
-    Boolean(favoriteGroup) && place.visits.some((v) => fieldMatches(v.group, favoriteGroup, aliases.groups));
+  const memberVisitMatch = (place: Place) => memberVisitIndex(place, targets, aliases) >= 0;
+  // 멤버를 정한 대상은 그 멤버(또는 그 그룹 단체)가 다녀간 곳만, 그룹만 정한 대상은 그 그룹이 다녀간 곳.
+  const targetMatch = (place: Place) => targets.some((t) =>
+    t.member
+      ? memberVisitIndex(place, [t], aliases) >= 0 && (!t.group || groupVisitIndex(place, [t], aliases) >= 0)
+      : groupVisitIndex(place, [t], aliases) >= 0);
 
   const matched = places
     .filter((place) => placeMatchesArea(place, area))
-    .filter((place) => (member ? memberVisitMatch(place) : true))
-    .filter((place) => (favoriteGroup ? groupVisitMatch(place) : true))
-    .filter((place) => member || favoriteGroup); // 둘 다 없으면 전국 521곳을 다 묶는 건 의미가 없어 거부
-
-  if (!member && !favoriteGroup) {
-    return { status: "rejected", reason: "group이나 member 중 하나는 있어야 해요." };
-  }
+    .filter(targetMatch);
 
   const buckets = new Map<string, { region: string; count: number; hasFavoriteMemberVisit: boolean; placeIds: string[] }>();
   for (const place of matched) {
@@ -84,7 +68,8 @@ export const findPlacesHandler: ToolHandler = async (invocation, context) => {
   });
 
   const result = {
-    query: { group: group || null, member: member || null, area: area || null },
+    query: { group: typeof args.group === "string" ? args.group : null, member: typeof args.member === "string" ? args.member : null, area: area || null },
+    ...(fromSaved ? { usedSavedFavorites: targets.map((t) => [t.group, t.memberName ?? t.member].filter(Boolean).join(" ")) } : {}),
     totalCount: matched.length,
     regionCount: regions.length,
     regions: regions.map((r) => ({ region: r.region, count: r.count, hasFavoriteMemberVisit: r.hasFavoriteMemberVisit })),

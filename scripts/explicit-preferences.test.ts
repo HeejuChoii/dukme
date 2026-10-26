@@ -7,7 +7,7 @@ const items = [
   { group: 'BTS', member: '뷔' },
 ] as Item[];
 const first = extractExplicitPreferences('내 최애는 NCT WISH 사쿠야야. 손민수 예산은 5만 원이고, 찜한 것도 기억해 줘!', items);
-assert.deepEqual(first, { favoriteGroup: 'NCT WISH', favoriteMember: '사쿠야', budget: 50000 });
+assert.deepEqual(first, { budget: 50000, favorite: { mode: 'add', entries: [{ group: 'NCT WISH', member: '사쿠야' }], ambiguous: [] } });
 assert.deepEqual(extractExplicitPreferences('내 최애 누구야? 예산 기억해?',items),{});
 assert.deepEqual(extractExplicitPreferences('사쿠야 엄브로 자켓 139000원 찾아줘',items),{});
 assert.deepEqual(extractExplicitPreferences('예산은 50,000원이야',items),{budget:50000});

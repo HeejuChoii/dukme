@@ -80,6 +80,19 @@ function matches(item: Item, text: string, aliases: Aliases): boolean {
   });
 }
 
+function interleaveByFavorite(sorted: Item[], rank: (item: Item) => number, count: number, limit: number): Item[] {
+  const buckets: Item[][] = Array.from({ length: count }, () => []);
+  for (const item of sorted) buckets[Math.floor(rank(item) / 2)]?.push(item);
+  const out: Item[] = [];
+  while (out.length < limit && buckets.some((b) => b.length)) {
+    for (const bucket of buckets) {
+      const next = bucket.shift();
+      if (next && out.length < limit) out.push(next);
+    }
+  }
+  return out;
+}
+
 export const searchItemHandler: ToolHandler = async (invocation, context) => {
   if (invocation.key !== "search_item") {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
@@ -101,15 +114,29 @@ export const searchItemHandler: ToolHandler = async (invocation, context) => {
     const groups = [...new Set(items.filter(i => i.member !== "단체" && exactMemberMatch(i.member, member, aliases)).map(i => i.group))];
     if (groups.length === 1) group = norm(groups[0]);
     else if (groups.length > 1) {
-      const favorites = groups.filter(g => Boolean(state.preferences.favoriteGroup) && fieldMatches(g, norm(state.preferences.favoriteGroup), aliases.groups));
+      const favorites = groups.filter(g => (prefs.favorites ?? []).some(f => f.group && fieldMatches(g, norm(f.group), aliases.groups)));
       if (favorites.length === 1) group = norm(favorites[0]);
       else return { status: "ambiguous_member", member: String(args.member), candidateGroups: groups,
         reason: "같은 멤버명이 여러 그룹에 있어요. 어느 그룹을 말하는지 먼저 물어봐 주세요.", count: 0, results: [] } as unknown as JsonValue;
     }
   }
-  // 아무 그룹이나 나열하는 추천이 아니라면 기억 속 최애 그룹을 기본으로 사용한다.
-  const usedFavoriteGroup = !group && !member && Boolean(prefs.favoriteGroup);
-  if (usedFavoriteGroup) group = norm(prefs.favoriteGroup);
+  // 그룹·멤버를 안 정해서 물으면 저장된 최애 전체를 기준으로 찾는다(앞의 최애 우선).
+  // 최애 멤버의 템 → 그 그룹의 다른 템 → 다음 최애 순서로 정렬된다.
+  const favorites = (prefs.favorites ?? []).filter(f => f.group || f.member);
+  const usedFavorites = !group && !member && favorites.length > 0;
+  const favoriteGroups = [...new Set(favorites.map(f => f.group).filter((g): g is string => Boolean(g)))];
+  if (usedFavorites && favoriteGroups.length === 1 && favorites.every(f => f.group)) group = norm(favoriteGroups[0]);
+  const favoriteRank = (item: Item): number => {
+    let best = -1;
+    favorites.forEach((f, i) => {
+      const fg = norm(f.group);
+      const groupOk = !fg || fieldMatches(item.group, fg, aliases.groups);
+      const rank = f.member && groupOk && memberMatches(item, norm(f.member), aliases, fg) ? 2 * i
+        : fg && groupOk ? 2 * i + 1 : -1;
+      if (rank >= 0 && (best < 0 || rank < best)) best = rank;
+    });
+    return best;
+  };
   const recommendationsOnly = args.recommendationsOnly === true;
   const budget = recommendationsOnly ? prefs.budget : undefined;
   const colors = recommendationsOnly ? (prefs.colors ?? []).map(norm) : [];
@@ -122,11 +149,12 @@ export const searchItemHandler: ToolHandler = async (invocation, context) => {
     if (item.matchType === "source_only") score -= 1; // 검증 데이터 우선
     return score;
   };
-  const results = items
+  const sorted = items
     // similar(유사 제품)는 alternativeOf로 묶인 "대체템"이 아니라 그 자체로 독립된 결과라서,
     // isSample과 달리 기본 검색에도 나와야 한다.
     .filter((item) => includeAlternatives || item.isOriginal || item.matchType === "similar" || item.matchType === "source_only")
     .filter((item) => fieldMatches(item.group, group, aliases.groups))
+    .filter((item) => !usedFavorites || favoriteRank(item) >= 0)
     .filter((item) => memberMatches(item, member, aliases, group))
     .filter((item) => maxPrice === undefined || (item.price !== null && item.price <= maxPrice))
     .filter((item) => !recommendationsOnly || !state.owned.includes(item.id))
@@ -134,18 +162,23 @@ export const searchItemHandler: ToolHandler = async (invocation, context) => {
     .filter((item) => !category || norm(`${item.category} ${item.detailCategory ?? ""}`).includes(category))
     .filter((item) => matches(item, keywords, aliases))
     .sort((a, b) => {
+      if (usedFavorites) {
+        const diff = favoriteRank(a) - favoriteRank(b);
+        if (diff) return diff;
+      }
       if (recommendationsOnly) {
         const diff = preferenceScore(b) - preferenceScore(a);
         if (diff) return diff;
       }
       if (a.isOriginal !== b.isOriginal) return a.isOriginal ? -1 : 1;
       return b.date.localeCompare(a.date);
-    })
-    .slice(0, limit);
+    });
+  // 최애 전체 기준일 때: 한 최애 템만으로 개수 상한이 차지 않게 최애마다 번갈아 담는다(첫 번째 최애부터).
+  const results = usedFavorites && favorites.length > 1 ? interleaveByFavorite(sorted, favoriteRank, favorites.length, limit) : sorted.slice(0, limit);
 
   const result = {
     appliedPreferences: {
-      favoriteGroup: usedFavoriteGroup ? prefs.favoriteGroup : null,
+      favorites: usedFavorites ? favorites : null,
       budget: budget ?? null,
       maxPrice: maxPrice ?? null,
       colors: recommendationsOnly ? prefs.colors ?? [] : [],

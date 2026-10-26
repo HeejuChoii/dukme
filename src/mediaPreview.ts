@@ -203,8 +203,12 @@ async function fetchTrustedHtml(start: URL, report?: FetchReport): Promise<strin
 async function resolvePreview(kind: 'item' | 'place', id: string, source: Item | Place): Promise<MediaPreview> {
   if (kind === 'item') {
     const item = source as Item;
-    const direct = safeImageUrl(item.imageUrl, 'https://sonminsoo.kr');
-    if (direct) return { imageUrl: direct, kind: 'photo', source: 'sonminsoo' };
+    // data/items.json의 imageUrl(손민수위키 제품 사진)이 있으면 페이지를 읽지 않고 바로 쓴다.
+    // 손민수위키 상품 페이지는 클라이언트 렌더링이라 서버에서 읽어도 사진이 없다. 절대 https 주소만 허용.
+    if (typeof item.imageUrl === 'string' && /^https:\/\//i.test(item.imageUrl.trim())) {
+      const direct = safeImageUrl(item.imageUrl, item.imageUrl);
+      if (direct) return { imageUrl: direct, kind: 'photo', source: 'sonminsoo' };
+    }
     const url = pageUrl(item.wikiUrl, 'sonminsoo.kr');
     if (!url) return null; // X-only rows have no image; never substitute other idols.
     const html = await fetchTrustedHtml(url);
