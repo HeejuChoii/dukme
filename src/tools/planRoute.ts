@@ -5,6 +5,7 @@ import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches } from "../aliasMatch.js";
 import { placeMatchesArea } from "../geo.js";
 import { orderByProximity } from "../routeOrder.js";
+import { romanizePlaceName } from "../romanize.js";
 import { favoriteTargets, groupVisitIndex, memberVisitIndex } from "./favoriteTargets.js";
 
 const DAY_START_MIN = 10 * 60;
@@ -124,7 +125,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
 
   const areaPlaces = places.filter((place) => placeMatchesArea(place, area));
   if (areaPlaces.length === 0) {
-    const result = { status: "no_data", area, reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
+    const result = { status: "no_data", area, areaEn: romanizePlaceName(area), reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
     emitCard({ tool: "planRoute", data: result }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
     return result as unknown as JsonValue;
   }
@@ -236,6 +237,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const excludedVisited = areaPlaces.length - unvisited.length;
   const result = {
     area,
+    areaEn: romanizePlaceName(area), // 한국어가 아닌 화면·답변에서 쓰는 지역 영문 표기 (서울 → Seoul)
     date,
     days,
     startTime: formatMinutes(startMinutes),

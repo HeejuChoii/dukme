@@ -35,6 +35,7 @@ export interface AppState {
   visitedPlaces: string[]; // place ids
   preferences: FanPreferences;
   purchaseClicks: number; // "사러 가기" 클릭 수 (데모용 카운터)
+  conversationLanguage?: "ko" | "en" | "ja" | "zh-CN" | "zh-TW"; // 마지막으로 판별된 대화 언어 (짧은 대답은 이걸 유지)
 }
 
 // 예전 형식(favoriteGroup/favoriteMember 하나씩)으로 저장된 app-state도 그대로 읽히게 favorites로 바꾼다.
@@ -70,6 +71,7 @@ export async function readState(user: string): Promise<AppState> {
       owned: parsed.owned ?? [],
       visitedPlaces: parsed.visitedPlaces ?? [],
       purchaseClicks: parsed.purchaseClicks ?? 0,
+      ...(parsed.conversationLanguage ? { conversationLanguage: parsed.conversationLanguage } : {}),
       preferences: migratePreferences(parsed.preferences),
     };
   } catch (error) {

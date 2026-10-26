@@ -515,23 +515,7 @@
     return text;
   }
 
-  // 간체/번체를 가르는 흔한 글자들 (한쪽에만 있는 자형).
-  const SIMPLIFIED_ONLY = '这们吗买东么说个来时会过对还没发样问爱欢应该帮边点价钱让给带员团队饭馆车门图线场预颜寻荐览红绿蓝袜视频网试报纸书语译号码热闹买卖岁庆贵乐关开见长后从发现这样为';
-  const TRADITIONAL_ONLY = '這們嗎買東麼說個來時會過對還沒發樣問愛歡應該幫邊點價錢讓給帶員團隊飯館車門圖線場預顏尋薦覽紅綠藍襪視頻網試報紙書語譯號碼熱鬧賣歲慶貴樂關開見長後從發現為麼裡';
-  function detectLang(text) {
-    if (/[぀-ヿ]/.test(text)) return 'ja'; // 히라가나·가타카나
-    if (/[가-힣ㄱ-ㆎ]/.test(text)) return 'ko';
-    if (/[一-鿿]/.test(text)) {
-      let s = 0, tr = 0;
-      for (const ch of text) { if (SIMPLIFIED_ONLY.includes(ch)) s++; if (TRADITIONAL_ONLY.includes(ch)) tr++; }
-      if (s > tr) return 'zh-CN';
-      if (tr > s) return 'zh-TW';
-      return uiLang.startsWith('zh') ? uiLang : 'zh-CN';
-    }
-    // 영어 문장만: 소문자 세 글자 이상 단어가 있을 때 ("NCT WISH"처럼 그룹명만 친 건 언어를 안 바꾼다)
-    if (/[a-z]{3,}/.test(text)) return 'en';
-    return uiLang; // 숫자·이모지만 있으면 그대로
-  }
+  // 화면 언어는 직접 추측하지 않고 서버가 판별한 대화 언어(source: 'lang', /state의 replyLanguage)를 따른다.
 
   // HTML에 박혀 있는 고정 문구(버튼·패널 제목·placeholder 등)를 현재 언어로 다시 쓴다.
   let hasSentMessage = false;
@@ -957,7 +941,9 @@
     const box = document.createElement('div');
     box.className = 'timeline';
     const title = document.createElement('h4');
-    title.textContent = t('route.title', { area: data.area }) + (data.days > 1 ? ' · ' + t('route.days', { n: data.days }) : '') + (data.date ? ' · ' + data.date : '');
+    // 영어·일본어·중국어 화면에서는 지역명도 영문 표기로 ("서울 route" → "Seoul route").
+    const areaLabel = uiLang !== 'ko' && data.areaEn ? data.areaEn : data.area;
+    title.textContent = t('route.title', { area: areaLabel }) + (data.days > 1 ? ' · ' + t('route.days', { n: data.days }) : '') + (data.date ? ' · ' + data.date : '');
     box.append(title);
     if (!data.course || data.course.length === 0) {
       const p = document.createElement('div');
@@ -1128,6 +1114,11 @@
   es.onerror = noteConnectionLost;
   es.onmessage = ({ data }) => {
     const { source, event } = JSON.parse(data);
+    // 화면 언어는 서버가 판별한 대화 언어를 그대로 따른다 (짧은 대답은 직전 언어 유지 — 덕메 답변과 같은 규칙).
+    if (source === 'lang') {
+      setUiLang(event.lang);
+      return;
+    }
     if (source === 'card') {
       const fn = handlers[event.tool];
       if (fn) fn(event.data);
@@ -1135,7 +1126,6 @@
     }
     // source === 'agent'
     if (event.type === 'input' && event.kind === 'user') {
-      setUiLang(detectLang(event.text || ''));
       ensureTurn(event.id);
       rowBubble(event.id, 'you').innerHTML = formatInline(event.text);
       scrollDown();
@@ -1275,6 +1265,8 @@
     const res = await fetch('/state');
     const data = await res.json();
     if (seq !== memoryPanelSeq) return;
+    // 새로고침해도 직전 대화 언어로 화면을 연다.
+    if (data.replyLanguage && data.replyLanguage !== uiLang) { setUiLang(data.replyLanguage); return; }
     if (data.purchaseClicks > 0) showPurchaseCounter(data.purchaseClicks);
     const memoryList = document.getElementById('memory-list');
     memoryList.innerHTML = '';

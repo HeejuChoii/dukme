@@ -14,6 +14,7 @@ import { onCard } from "./bus.js";
 import { resetState, readState, updateState } from "./state.js";
 import { loadAliases, loadItems, loadPlaces, type Item } from "./data.js";
 import { diagnoseItemPreview, getMediaPreview } from "./mediaPreview.js";
+import { resolveReplyLanguage } from "./language.js";
 import { buildPersonalContext } from "./personalContext.js";
 import { extractExplicitPreferences } from "./explicitPreferences.js";
 import { applyFavoriteChange, buildFavoriteCatalog, favoritesLabel, noteFavoriteChange, rosterSummary, type FavoriteApplyResult } from "./favorite.js";
@@ -58,10 +59,11 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - 화면의 "덕질 기록" 버튼으로 여는 패널("내 덕질 기록")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
 
 [언어 — 국제 팬덤 대응]
-- 기본 응답 언어는 한국어다. 사용자가 다른 언어(영어·일본어·간체중국어·번체중국어 등)로 말하면 그 메시지에 쓴 언어 그대로 답한다. 해당 언어로 답해 달라고 명시하면 그 언어로 답한다. 번역은 시연 단계이며 전문 번역의 정확성을 확언하지 않는다.
-- 중국어는 간체와 번체를 반드시 구분한다. 사용자가 간체(예: 们, 这, 吗, 买, 东西)로 쓰면 간체로, 번체(예: 們, 這, 嗎, 買, 東西)로 쓰면 번체로 답한다. 중국어로 물었는데 영어나 한국어로 답하지 않는다.
-- 사용자가 선호 응답 언어를 확실히 설정하면 savePreferences의 language(ko/en/ja/zh-CN/zh-TW)에 저장한다. 간체는 zh-CN, 번체는 zh-TW다. 멤버명·그룹명·브랜드·제품명·실제 구매 URL은 임의 번역하거나 바꾸지 않는다.
-- 도구를 호출하기 전에 중간 진행 메시지를 따로 보내지 않는다. 조용히 필요한 도구를 호출하고 완료된 결과를 사용자의 언어로 설명한다.
+- 매 메시지 context의 replyLanguage(ko/en/ja/zh-CN/zh-TW)로만 답한다. 앱이 사용자가 마지막으로 문장을 쓴 언어로 정해 두고, "yes!!", "ok", 이모지처럼 짧은 대답에는 직전 언어를 유지해 준 값이다. 짧은 대답이 왔다고 한국어로 돌아가지 않는다.
+- Tool 결과(장소 설명·메모, 추천 메뉴, 지역명, 이유 문구)가 한국어여도 replyLanguage로 풀어서 설명한다. 지역명은 replyLanguage가 한국어가 아니면 영문 표기로 쓴다(서울 → Seoul, 용산구 → Yongsan-gu, 목포 → Mokpo). 멤버명·그룹명·브랜드·제품명·가게 이름·실제 구매 URL은 임의 번역하거나 바꾸지 않는다.
+- 중국어는 간체(zh-CN)와 번체(zh-TW)를 반드시 구분한다.
+- 사용자가 선호 응답 언어를 확실히 설정하면 savePreferences의 language(ko/en/ja/zh-CN/zh-TW)에 저장한다. 간체는 zh-CN, 번체는 zh-TW다. 번역은 시연 단계이며 전문 번역의 정확성을 확언하지 않는다.
+- 도구를 호출하기 전에 중간 진행 메시지를 따로 보내지 않는다. 조용히 필요한 도구를 호출하고 완료된 결과를 replyLanguage로 설명한다.
 
 [말투]
 - 친근한 또래 팬처럼, 짧고 자연스러운 한국어 반말/존댓말 섞어서 (반말 베이스, 과하지 않게).
@@ -69,6 +71,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 
 [처음 만났을 때]
 - 사용자가 최애 그룹/멤버를 말하면 반가워하고, 아직 모른다면 대화 자연스럽게 흘러가는 중에 예산대나 사이즈(상의/하의/신발)를 가볍게 물어봐. 한 번에 다 묻지 말 것.
+- 최애만 말하고 다른 요청이 없으면 "저장할게"로 밋밋하게 끝내지 않는다. 저장된 내용을 짧게 확인한 뒤, 바로 할 수 있는 것을 한 줄로 제안한다: 그 최애의 착용템 보기, 그 최애가 다녀간 성지 보기. 예: "태산 착용템부터 볼까, 아니면 태산이 다녀간 성지 볼래?" / 영어면 "Want to see what Taesan wore, or the spots Taesan visited?" (replyLanguage로).
 
 [한 메시지에 요청이 여러 개일 때 — 매우 중요]
 - 사용자는 한 메시지에 여러 요청을 한꺼번에 보낼 수 있다 (예: "나 리쿠 최애야, 가방 찾아줘, 찜할게, 코스도 짜줘"처럼 한 문장에 소개+검색+대체템+찜+코스짜기가 다 들어있는 경우).
@@ -162,6 +165,25 @@ onCard((card) => {
   for (const page of pages) sendEvent(page, { source: "card", event: card });
 });
 
+// 언어 판별에서 빼는 고유명사: 멤버·그룹 이름과 별명, 지역 이름("I love 사쿠야", "목포 route"가 한국어로 잡히지 않게).
+let properNounCache: string[] | null = null;
+function languageProperNouns(catalog: ReturnType<typeof buildFavoriteCatalog>, places: Awaited<ReturnType<typeof loadPlaces>>): string[] {
+  if (properNounCache) return properNounCache;
+  const nouns = new Set<string>();
+  for (const m of catalog.members) for (const v of [m.name, ...m.variants]) nouns.add(v);
+  for (const g of catalog.groups) for (const v of [g.name, ...g.variants]) nouns.add(v);
+  for (const place of places) {
+    for (const token of [place.area, ...(place.region ?? "").split(/\s+/)]) {
+      if (!token) continue;
+      nouns.add(token);
+      nouns.add(token.replace(/(특별자치시|특별자치도|통합특별시|특별시|광역시|도|시|군|구)$/, ""));
+    }
+  }
+  for (const extra of ["홍대", "성수", "한남", "강남", "명동", "서울", "부산", "제주"]) nouns.add(extra);
+  properNounCache = [...nouns].filter((n) => n.length >= 2);
+  return properNounCache;
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   let body = "";
   for await (const chunk of req) body += chunk;
@@ -239,8 +261,19 @@ const server = createServer(async (req, res) => {
         });
         if (favoriteApplied) noteFavoriteChange(DEMO_USER, favoriteApplied);
       }
-      const appState = await readState(DEMO_USER);
+      let appState = await readState(DEMO_USER);
+      // 답할 언어: 이 메시지가 문장이면 그 언어, 짧거나 고유명사뿐이면 직전 대화 언어 유지.
+      const replyLanguage = resolveReplyLanguage(text, {
+        previous: appState.conversationLanguage ?? appState.preferences.language ?? null,
+        properNouns: languageProperNouns(catalog, places),
+      });
+      if (replyLanguage !== appState.conversationLanguage) {
+        appState = await updateState(DEMO_USER, (state) => { state.conversationLanguage = replyLanguage; return state; });
+      }
+      // 화면 문구도 같은 판별 결과를 따른다 (화면이 따로 추측하지 않게).
+      for (const page of pages) sendEvent(page, { source: "lang", event: { lang: replyLanguage } });
       const context = {
+        replyLanguage,
         ...buildPersonalContext(appState, agent.memory.list(), items, places),
         fanDataRoster: rosterSummary(catalog),
         // 이번 메시지에서 앱이 이미 반영한 최애 변경. 덕메는 이걸 기준으로 실제 저장된 것만 말한다.
@@ -341,7 +374,7 @@ const server = createServer(async (req, res) => {
       const visitedPlaces = appState.visitedPlaces.map((id) => places.find((p) => p.id === id)).filter(Boolean);
       res
         .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ memory, preferences: appState.preferences, wishlist, owned, visitedPlaces, purchaseClicks: appState.purchaseClicks }));
+        .end(JSON.stringify({ memory, preferences: appState.preferences, wishlist, owned, visitedPlaces, purchaseClicks: appState.purchaseClicks, replyLanguage: appState.conversationLanguage ?? appState.preferences.language ?? "ko" }));
       return;
     }
     res.writeHead(404).end();
