@@ -2,19 +2,23 @@
 // Croche still performs its normal Memory and savePreferences Tool actions, but the
 // demo must not lose clear declarations if a model turn omits the tool call.
 import type { FanPreferences } from './state.js';
-import type { Item } from './data.js';
+import type { Aliases, Item } from './data.js';
+import { buildFavoriteCatalog, detectFavoriteInText, type FavoriteCatalog } from './favorite.js';
 
-export function extractExplicitPreferences(text: string, items: Item[]): FanPreferences {
+// 최애 판별은 savePreferences Tool과 같은 규칙(src/favorite.ts)을 쓴다. 멤버만 말해도 데이터에서
+// 그룹을 찾고, 같은 이름이 여러 그룹에 있으면 저장하지 않는다(덕메가 되묻는다).
+export function extractExplicitPreferences(
+  text: string,
+  items: Item[],
+  aliases: Aliases = { members: {}, groups: {} },
+  catalog: FavoriteCatalog = buildFavoriteCatalog(items, aliases),
+): FanPreferences {
   const changes: FanPreferences = {};
   if (/최애/.test(text) && !/최애(?:가|는)?\s*누구/.test(text)) {
-    const groups = [...new Set(items.map(i => i.group))]
-      .filter(g => g.toLowerCase() !== '단체')
-      .filter(g => text.toLowerCase().includes(g.toLowerCase()));
-    if (groups.length === 1) {
-      changes.favoriteGroup = groups[0];
-      const members = [...new Set(items.filter(i => i.group === groups[0] && i.member !== '단체').map(i => i.member))]
-        .filter(member => text.includes(member));
-      if (members.length === 1) changes.favoriteMember = members[0];
+    const favorite = detectFavoriteInText(text, catalog);
+    if (favorite.status === 'resolved') {
+      if (favorite.favoriteGroup) changes.favoriteGroup = favorite.favoriteGroup;
+      if (favorite.favoriteMember) changes.favoriteMember = favorite.favoriteMember;
     }
   }
   const match = text.match(/(?:손민수\s*)?예산(?:은|이|으로|을|은\s*)?[^.!?\n]{0,25}?(\d[\d,]*(?:\.\d+)?)\s*(만|천)?\s*원/);

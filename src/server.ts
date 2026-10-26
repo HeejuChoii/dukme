@@ -12,10 +12,11 @@ import { FileStorage } from "@h1r-ai/croche/node";
 import { toolDeclarations, toolHandlers } from "./tools/index.js";
 import { onCard } from "./bus.js";
 import { resetState, readState, updateState } from "./state.js";
-import { loadItems, loadPlaces } from "./data.js";
+import { loadAliases, loadItems, loadPlaces } from "./data.js";
 import { getMediaPreview } from "./mediaPreview.js";
 import { buildPersonalContext } from "./personalContext.js";
 import { extractExplicitPreferences } from "./explicitPreferences.js";
+import { buildFavoriteCatalog, detectFavoriteInText, mergeFavorite, rosterSummary } from "./favorite.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const { CROCHE_PROJECT_KEY, CROCHE_DEBUG_KEY, PORT = "3000", HOST = "0.0.0.0" } = process.env;
@@ -44,6 +45,13 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - 매 메시지에는 별도 context로 현재 저장된 personalProfile, crocheLongTermMemories, wishlist, ownedItems, visitedPlaces가 전달된다. 이는 앱의 실제 저장 정보다.
 - personalProfile.favoriteGroup/favoriteMember/budget이 있으면 사용자가 새 대화에서 "최애가 누구야?", "예산 기억해?"라고 물어도 이 값을 정확히 답한다. 새 대화라고 정보를 잊었다고 하지 않는다.
 - 현재 구조화된 personalProfile을 다른 과거 기억보다 우선한다. 없는 정보는 추측하지 않는다.
+
+[최애 그룹·멤버 — 데이터 먼저 확인]
+- 매 메시지 context의 fanDataRoster에 "그룹: 멤버 목록"이 들어 있다. 이게 우리 데이터에 있는 그룹·멤버 전부다.
+- 사용자가 멤버 이름만 말하면(예: "내 최애는 사쿠야야", "나 원영이 최애야") "어느 그룹이야?"라고 되묻기 전에 fanDataRoster에서 그 멤버의 그룹을 먼저 찾는다. 한 그룹에만 있으면 그 그룹으로 알고 말하고, savePreferences에 favoriteGroup과 favoriteMember를 같이 보낸다. 성을 뺀 이름("원영")은 데이터의 정식 이름("장원영")으로 맞춘다.
+- 예전에 저장된 최애 그룹을 새 멤버에 그냥 붙이지 않는다. 사쿠야는 NCT WISH 멤버이지 IVE 멤버가 아니다 — 멤버의 그룹은 항상 fanDataRoster를 따른다.
+- fanDataRoster에 있는 멤버를 "모른다", "그룹은 몰라"라고 하지 않는다. 같은 이름이 여러 그룹에 있을 때(또는 savePreferences가 needs_group을 돌려줄 때)만 candidateGroups 중 어느 그룹인지 물어본다.
+- fanDataRoster에 없는 멤버면 지어내지 말고, 그 멤버 정보는 아직 데이터에 없다고 솔직히 말한다.
 - 찜/구매/방문 기록은 별도 Tool로 변경해야 하며 단순히 기억했다고 말해서 기록을 조작하지 않는다.
 
 [언어 — 국제 팬덤 대응]
@@ -126,10 +134,17 @@ const agent = await croche.agent();
 
 // 이 데모는 방문자 전체가 하나의 대화를 공유한다 (PRD: 로그인 없는 데모 1화면).
 const pages = new Set<ServerResponse>();
+// "기억 초기화"를 턴이 도는 도중에 누르면 memory.clear()는 그 턴이 끝난 뒤에 적용되고(DeferredWrite),
+// 그 사이 savePreferences가 예전 최애를 app-state에 다시 쓸 수 있다. 그래서 턴이 끝나면 한 번 더 비운다.
+let resetStateWhenIdle = false;
 const sendEvent = (res: ServerResponse, payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
 agent.subscribe({
   onEvent: (event: AgentEvent) => {
+    if (resetStateWhenIdle && event.type === "state" && event.status === "idle") {
+      resetStateWhenIdle = false;
+      void resetState(DEMO_USER).catch((error) => console.error("reset after turn failed:", error));
+    }
     for (const page of pages) sendEvent(page, { source: "agent", event });
   },
 });
@@ -186,20 +201,28 @@ const server = createServer(async (req, res) => {
       }
       // Croche가 대화 이력을 초기화해도 앱에 저장된 최애·예산·구매·방문 정보는
       // 매 턴 별도 context로 전달한다 (SDK SendInput.context 공식 지원).
-      const [items, places] = await Promise.all([loadItems(), loadPlaces()]);
-      const explicit = extractExplicitPreferences(text, items);
+      const [items, places, aliases] = await Promise.all([loadItems(), loadPlaces(), loadAliases()]);
+      const catalog = buildFavoriteCatalog(items, aliases);
+      const explicit = extractExplicitPreferences(text, items, aliases, catalog);
       // Croche가 savePreferences를 생략한 턴에도 '내 최애는 사쿠야, 예산은 5만 원'
       // 처럼 사용자가 분명히 직접 말한 사실만 앱에 안전하게 보존한다.
       if (Object.keys(explicit).length) {
+        // 최애 병합 규칙은 savePreferences Tool과 같다(src/favorite.ts): 멤버로 그룹이 정해지면 예전 그룹을 덮어쓰고,
+        // 그룹만 바뀌면 새 그룹에 없는 예전 멤버를 지운다.
+        const { favoriteGroup, favoriteMember, ...rest } = explicit;
         await updateState(DEMO_USER, state => {
-          if (explicit.favoriteGroup && explicit.favoriteGroup !== state.preferences.favoriteGroup && !explicit.favoriteMember) {
-            delete state.preferences.favoriteMember;
-          }
-          state.preferences = { ...state.preferences, ...explicit };
+          state.preferences = mergeFavorite({ ...state.preferences, ...rest }, { favoriteGroup, favoriteMember }, catalog);
         });
       }
       const appState = await readState(DEMO_USER);
-      const context = buildPersonalContext(appState, agent.memory.list(), items, places);
+      const favoriteInText = /최애/.test(text) ? detectFavoriteInText(text, catalog) : { status: "none" as const };
+      const context = {
+        ...buildPersonalContext(appState, agent.memory.list(), items, places),
+        fanDataRoster: rosterSummary(catalog),
+        ...(favoriteInText.status === "ambiguous"
+          ? { favoriteNeedsGroup: { member: favoriteInText.member, candidateGroups: favoriteInText.candidateGroups, note: "같은 이름이 여러 그룹에 있어 최애를 저장하지 않았다. 어느 그룹인지 물어본다." } }
+          : {}),
+      };
       const receipt = await agent.send({ id: randomUUID(), text, context });
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(receipt));
       return;
@@ -209,11 +232,15 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const scope = String(JSON.parse(body || "{}").scope ?? "conversation");
       await agent.clearHistory();
+      let memoryDeferred = false;
       if (scope === "all") {
-        await agent.memory.clear();
+        // Croche 메모리(최애·예산 등 AI 기억)와 app-state 선호(personalProfile)를 둘 다 비운다.
+        const cleared = await agent.memory.clear();
+        memoryDeferred = "deferred" in cleared;
         await resetState(DEMO_USER);
+        if (memoryDeferred) resetStateWhenIdle = true;
       }
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, scope }));
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, scope, memoryDeferred }));
       return;
     }
     if (req.method === "POST" && req.url === "/memory/delete") {
