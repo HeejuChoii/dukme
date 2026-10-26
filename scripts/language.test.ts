@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { resolveReplyLanguage, requestedLanguage } from '../src/language.js';
+import { REPLY_INSTRUCTION, REPLY_LANGUAGES, resolveReplyLanguage, requestedLanguage } from '../src/language.js';
 import { romanizePlaceName } from '../src/romanize.js';
 import { planRouteHandler } from '../src/tools/planRoute.js';
-import { resetState } from '../src/state.js';
+import { readState, resetState, updateState } from '../src/state.js';
 
 const properNouns = ['사쿠야', '태산', '카리나', 'boynextdoor', '목포', '서울', 'sakuya', 'taesan', '용산구', '용산'];
 const r = (text: string, previous: any) => resolveReplyLanguage(text, { previous, properNouns });
@@ -62,4 +62,19 @@ try {
 } finally {
   await resetState(user);
 }
+// 언어별 지시문은 그 언어로 쓰여 있다
+for (const lang of REPLY_LANGUAGES) assert.ok(REPLY_INSTRUCTION[lang], lang);
+assert.match(REPLY_INSTRUCTION.ja, /[\u3040-\u30ff]/);
+assert.match(REPLY_INSTRUCTION['zh-CN'], /简体/);
+assert.match(REPLY_INSTRUCTION['zh-TW'], /繁體/);
+assert.match(REPLY_INSTRUCTION.en, /English/);
+assert.match(REPLY_INSTRUCTION.ko, /한국어/);
+
+// 기억 초기화(scope=all)는 대화 언어도 비운다 → 다음 관람객은 한국어로 시작
+await updateState(user, (s) => { s.conversationLanguage = 'ja'; });
+assert.equal((await readState(user)).conversationLanguage, 'ja');
+await resetState(user);
+assert.equal((await readState(user)).conversationLanguage, undefined);
+assert.equal(resolveReplyLanguage('👍', { previous: (await readState(user)).conversationLanguage ?? null }), 'ko');
+
 console.log('PASS: 대화 언어 고정(짧은 대답은 직전 언어), 언어 직접 요청, 지역명 영문 표기');

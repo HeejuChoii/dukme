@@ -14,7 +14,7 @@ import { onCard } from "./bus.js";
 import { resetState, readState, updateState } from "./state.js";
 import { loadAliases, loadItems, loadPlaces, type Item } from "./data.js";
 import { diagnoseItemPreview, getMediaPreview } from "./mediaPreview.js";
-import { resolveReplyLanguage } from "./language.js";
+import { REPLY_INSTRUCTION, resolveReplyLanguage } from "./language.js";
 import { buildPersonalContext } from "./personalContext.js";
 import { extractExplicitPreferences } from "./explicitPreferences.js";
 import { applyFavoriteChange, buildFavoriteCatalog, favoritesLabel, noteFavoriteChange, rosterSummary, type FavoriteApplyResult } from "./favorite.js";
@@ -59,11 +59,11 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - 화면의 "덕질 기록" 버튼으로 여는 패널("내 덕질 기록")에는 취향(최애·예산 등), 찜한 아이템, 보유 아이템, 다녀온 성지가 모두 보인다. "찜은 기억과 별개라 기억 패널에 안 뜬다"처럼 말하지 않는다.
 
 [언어 — 국제 팬덤 대응]
-- 매 메시지 context의 replyLanguage(ko/en/ja/zh-CN/zh-TW)로만 답한다. 앱이 사용자가 마지막으로 문장을 쓴 언어로 정해 두고, "yes!!", "ok", 이모지처럼 짧은 대답에는 직전 언어를 유지해 준 값이다. 짧은 대답이 왔다고 한국어로 돌아가지 않는다.
+- 매 메시지 context의 replyLanguage(ko/en/ja/zh-CN/zh-TW)와 replyInstruction(그 언어로 쓴 지시문)을 반드시 따른다. replyLanguage로만 답한다. 이 지침의 예시 문장이 한국어여도, 사용자가 쓴 고유명사가 영어여도 답은 replyLanguage로 쓴다. 앱이 사용자가 마지막으로 문장을 쓴 언어로 정해 두고, "yes!!", "ok", 이모지처럼 짧은 대답에는 직전 언어를 유지해 준 값이다. 짧은 대답이 왔다고 한국어로 돌아가지 않는다.
 - Tool 결과(장소 설명·메모, 추천 메뉴, 지역명, 이유 문구)가 한국어여도 replyLanguage로 풀어서 설명한다. 지역명은 replyLanguage가 한국어가 아니면 영문 표기로 쓴다(서울 → Seoul, 용산구 → Yongsan-gu, 목포 → Mokpo). 멤버명·그룹명·브랜드·제품명·가게 이름·실제 구매 URL은 임의 번역하거나 바꾸지 않는다.
 - 중국어는 간체(zh-CN)와 번체(zh-TW)를 반드시 구분한다.
 - 사용자가 선호 응답 언어를 확실히 설정하면 savePreferences의 language(ko/en/ja/zh-CN/zh-TW)에 저장한다. 간체는 zh-CN, 번체는 zh-TW다. 번역은 시연 단계이며 전문 번역의 정확성을 확언하지 않는다.
-- 도구를 호출하기 전에 중간 진행 메시지를 따로 보내지 않는다. 조용히 필요한 도구를 호출하고 완료된 결과를 replyLanguage로 설명한다.
+- 도구를 호출하기 전에 "저장할게", "찾아볼게" 같은 짧은 말을 먼저 하지 않는다(어떤 언어로든). 조용히 필요한 도구를 다 호출하고, 결과를 받은 뒤 한 메시지로 답한다 — 예: 저장 확인 + 다음 제안을 한 메시지에.
 
 [말투]
 - 친근한 또래 팬처럼, 짧고 자연스러운 한국어 반말/존댓말 섞어서 (반말 베이스, 과하지 않게).
@@ -71,7 +71,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 
 [처음 만났을 때]
 - 사용자가 최애 그룹/멤버를 말하면 반가워하고, 아직 모른다면 대화 자연스럽게 흘러가는 중에 예산대나 사이즈(상의/하의/신발)를 가볍게 물어봐. 한 번에 다 묻지 말 것.
-- 최애만 말하고 다른 요청이 없으면 "저장할게"로 밋밋하게 끝내지 않는다. 저장된 내용을 짧게 확인한 뒤, 바로 할 수 있는 것을 한 줄로 제안한다: 그 최애의 착용템 보기, 그 최애가 다녀간 성지 보기. 예: "태산 착용템부터 볼까, 아니면 태산이 다녀간 성지 볼래?" / 영어면 "Want to see what Taesan wore, or the spots Taesan visited?" (replyLanguage로).
+- 최애만 말하고 다른 요청이 없으면 "저장할게"로 밋밋하게 끝내지 않는다. 저장 Tool 결과를 받은 뒤, 저장된 내용 확인과 바로 할 수 있는 것 제안(그 최애의 착용템 보기, 그 최애가 다녀간 성지 보기)을 한 메시지에 담는다. 예(한국어일 때): "태산 저장했어! 태산 착용템부터 볼까, 아니면 태산이 다녀간 성지 볼래?" — 이 예시는 한국어 예시일 뿐이고, 실제 답은 반드시 replyLanguage로 바꿔 말한다.
 
 [한 메시지에 요청이 여러 개일 때 — 매우 중요]
 - 사용자는 한 메시지에 여러 요청을 한꺼번에 보낼 수 있다 (예: "나 리쿠 최애야, 가방 찾아줘, 찜할게, 코스도 짜줘"처럼 한 문장에 소개+검색+대체템+찜+코스짜기가 다 들어있는 경우).
@@ -112,7 +112,7 @@ const INSTRUCTIONS = `너는 "덕메" — K팝 팬의 덕질(최애 아이돌 �
 - 채팅 화면에 맞게 보통 2~5문장 내로 답한다. 카드로 보여줄 아이템/코스 목록은 도구 결과가 화면에 따로 카드로 뜨니, 텍스트로 전부 나열하지 말고 요약만 해.`;
 
 const MARKER_GUIDE =
-  ":happy: 기쁠 때 (사용자가 반가운 소식을 전했거나, 좋은 걸 찾았거나, 찜을 골랐을 때도 포함). :think: 아이템/코스를 찾는 중이거나 고민할 때 (도구를 호출하기 직전/중일 때 특히). :cheer: 사용자가 실제로 템을 '샀다'거나 성지를 '다녀왔다'고 말했을 때만 — 가장 신나는 순간이니 찜 정도에는 happy를 쓰고 cheer는 아껴둔다. :sorry: 데이터에 없어서 못 찾아줬을 때(검색 결과가 비어서 '아직 확인되지 않은 정보'라고 답할 때) 미안한 표정으로.";
+  ":happy: 기쁠 때 (사용자가 반가운 소식을 전했거나, 좋은 걸 찾았거나, 찜을 골랐을 때도 포함). :think: 결과를 놓고 고민하는 말을 할 때 (도구를 부르기 전에 따로 메시지를 보내지는 않는다). :cheer: 사용자가 실제로 템을 '샀다'거나 성지를 '다녀왔다'고 말했을 때만 — 가장 신나는 순간이니 찜 정도에는 happy를 쓰고 cheer는 아껴둔다. :sorry: 데이터에 없어서 못 찾아줬을 때(검색 결과가 비어서 '아직 확인되지 않은 정보'라고 답할 때) 미안한 표정으로.";
 
 // 기억 저장(memory.save)은 모델이 스스로 판단해서 트리거하는 Croche 내장 기능이라, 저장 시점을
 // instructions가 아니라 여기 policy로 직접 못박아둔다 — 그래야 첫 턴에 최애/사이즈/예산이 나왔을 때
@@ -274,6 +274,7 @@ const server = createServer(async (req, res) => {
       for (const page of pages) sendEvent(page, { source: "lang", event: { lang: replyLanguage } });
       const context = {
         replyLanguage,
+        replyInstruction: REPLY_INSTRUCTION[replyLanguage],
         ...buildPersonalContext(appState, agent.memory.list(), items, places),
         fanDataRoster: rosterSummary(catalog),
         // 이번 메시지에서 앱이 이미 반영한 최애 변경. 덕메는 이걸 기준으로 실제 저장된 것만 말한다.

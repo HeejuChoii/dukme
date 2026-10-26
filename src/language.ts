@@ -5,6 +5,16 @@
 export type ReplyLanguage = "ko" | "en" | "ja" | "zh-CN" | "zh-TW";
 export const REPLY_LANGUAGES: readonly ReplyLanguage[] = ["ko", "en", "ja", "zh-CN", "zh-TW"];
 
+// 매 턴 context에 replyLanguage와 함께 넣는 지시문. 코드만 주면 모델이 지침의 예시 언어를 따라가는 일이 있어서
+// 그 언어로 직접 쓴 문장을 같이 준다.
+export const REPLY_INSTRUCTION: Record<ReplyLanguage, string> = {
+  ko: "반드시 한국어로만 답한다.",
+  en: "Reply only in English.",
+  ja: "必ず日本語だけで返答してください。",
+  "zh-CN": "请只用简体中文回答。",
+  "zh-TW": "請只用繁體中文回答。",
+};
+
 // 간체/번체를 가르는 흔한 글자들 (한쪽에만 있는 자형).
 const SIMPLIFIED_ONLY = "这们吗买东么说个来时会过对还没发样问爱欢应该帮边点价钱让给带员团队饭馆车门图线场预颜寻荐览红绿蓝袜视频网试报纸书语译号码热闹卖岁庆贵乐关开见长后从现为";
 const TRADITIONAL_ONLY = "這們嗎買東麼說個來時會過對還沒發樣問愛歡應該幫邊點價錢讓給帶員團隊飯館車門圖線場預顏尋薦覽紅綠藍襪視頻網試報紙書語譯號碼熱鬧賣歲慶貴樂關開見長後從現為裡";
