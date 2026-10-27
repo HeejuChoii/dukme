@@ -6,6 +6,7 @@ services:
   - type: web
     name: dukme
     runtime: node
+    region: singapore # 한국 관람객과 가장 가까운 Render 리전
     plan: starter # 영구 디스크는 유료 인스턴스에서만 붙는다(free 불가)
     buildCommand: npm ci
     startCommand: npm run start:prod
