@@ -8,6 +8,7 @@ export interface FavoriteTarget {
   member: string; // 소문자 정규화, 없으면 ""
   group: string; // 소문자 정규화, 없으면 ""
   memberName: string | null; // 라벨용 데이터 정식 이름
+  groupName: string | null; // 안내용 데이터 정식 그룹명 (예: "BTS")
 }
 
 export function favoriteTargets(
@@ -32,7 +33,8 @@ export function favoriteTargets(
       : undefined;
     if (!group && memberItem) group = norm(memberItem.group);
     if (!member && !group) return null;
-    return { member, group, memberName: memberItem?.member ?? null };
+    const groupItem = memberItem ?? (group ? items.find((item) => fieldMatches(item.group, group, aliases.groups)) : undefined);
+    return { member, group, memberName: memberItem?.member ?? null, groupName: groupItem?.group ?? null };
   };
 
   const argMember = typeof args.member === "string" ? args.member : "";
@@ -45,17 +47,23 @@ export function favoriteTargets(
   return { targets, fromSaved: targets.length > 0 };
 }
 
-/** 이 장소에 다녀간 최애 멤버(단체 방문은 그룹이 맞으면 포함) 중 가장 앞 순서의 index, 없으면 -1. */
+// 성지는 그룹 단위다: 데이터 대부분이 "단체" 방문이고 멤버 개인 기록은 드물다(BTS 78곳 중 RM·V·SUGA 몇 곳).
+// 그래서 최애가 멤버여도 찾는 범위는 그 멤버의 그룹 성지 전체(groupVisitIndex)이고,
+// 멤버 개인 기록이 있는 곳(memberVisitIndex)은 우선순위만 올리고 "지민이 다녀간 곳"처럼 표시한다.
+
+/** 이 장소에 그 멤버 이름으로 남은 개인 방문 기록이 있는 최애 중 가장 앞 순서의 index, 없으면 -1. ("단체"는 그룹 방문으로 본다) */
 export function memberVisitIndex(place: Place, targets: FavoriteTarget[], aliases: Aliases): number {
   return targets.findIndex((t) =>
     Boolean(t.member) &&
     place.visits.some((v) =>
-      v.member === "단체" ? Boolean(t.group) && fieldMatches(v.group, t.group, aliases.groups) : fieldMatches(v.member, t.member, aliases.members),
+      v.member !== "단체" &&
+      fieldMatches(v.member, t.member, aliases.members) &&
+      (!t.group || fieldMatches(v.group, t.group, aliases.groups)),
     ),
   );
 }
 
-/** 이 장소에 다녀간 최애 그룹 중 가장 앞 순서의 index, 없으면 -1. */
+/** 이 장소에 다녀간 최애 그룹(단체·멤버 개인 방문 모두) 중 가장 앞 순서의 index, 없으면 -1. */
 export function groupVisitIndex(place: Place, targets: FavoriteTarget[], aliases: Aliases): number {
   return targets.findIndex((t) => Boolean(t.group) && place.visits.some((v) => fieldMatches(v.group, t.group, aliases.groups)));
 }

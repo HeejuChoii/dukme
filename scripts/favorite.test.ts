@@ -177,7 +177,8 @@ try {
 
   const route = await planRouteHandler(inv('plan_route', { area: '양평군' }), ctx) as any; // member/group 없이
   assert.ok(route.course.length > 0);
-  assert.equal(route.course[0].visitLabel?.name, '태산', '저장된 최애(태산)가 다녀간 곳이 먼저');
+  // 성지는 그룹 단위: 양평 기록은 BOYNEXTDOOR 단체 방문이라 "태산이 다녀간 곳"이 아니라 그룹 이름으로 안내한다.
+  assert.deepEqual(route.course[0].visitLabel, { kind: 'group', name: 'BOYNEXTDOOR', nameKo: '보이넥스트도어' }, '저장된 최애(태산)의 그룹이 다녀간 곳이 먼저');
 
   // 기억 초기화(scope=all)의 app-state 쪽: 최애까지 전부 비워진다
   await resetState(user);

@@ -81,7 +81,9 @@ try {
     const bndStop = bnd.course.find((s: any) => s.visitLabel);
     assert.deepEqual(bndStop.visitLabel, { kind: 'group', name: 'BOYNEXTDOOR', nameKo: '보이넥스트도어' });
     const taesan = await planRouteHandler(inv('plan_route', { area: '양평군', member: '태산', group: 'BOYNEXTDOOR' }), ctx2) as any;
-    assert.equal(taesan.course.find((s: any) => s.visitLabel).visitLabel.name, '태산');
+    // 태산을 물어도 양평 기록은 단체 방문뿐 → 그룹 이름으로 (멤버 개인 기록이 있을 때만 멤버 이름)
+    assert.deepEqual(taesan.course.find((s: any) => s.visitLabel).visitLabel, { kind: 'group', name: 'BOYNEXTDOOR', nameKo: '보이넥스트도어' });
+    assert.ok(taesan.course.length > 0 && taesan.course.every((s: any) => !s.isFavoriteMemberVisit));
     const sakuya = await planRouteHandler(inv('plan_route', { area: '종로구', member: '사쿠야', group: 'NCT WISH' }), ctx2) as any;
     assert.deepEqual(sakuya.course[0].visitLabel, { kind: 'member', name: '사쿠야', nameKo: '사쿠야' });
     // 리쿠 기록은 없고 같은 그룹(사쿠야) 기록만 있는 곳 → 그룹 이름

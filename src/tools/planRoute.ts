@@ -3,7 +3,7 @@ import { loadItems, loadPlaces, loadAliases, type Place } from "../data.js";
 import { readState } from "../state.js";
 import { emitCard, dedupeKeyFor } from "../bus.js";
 import { norm, fieldMatches } from "../aliasMatch.js";
-import { placeMatchesArea } from "../geo.js";
+import { areaLabel, displayArea, placeMatchesArea } from "../geo.js";
 import { orderByProximity } from "../routeOrder.js";
 import { romanizePlaceName } from "../romanize.js";
 import { favoriteTargets, groupVisitIndex, memberVisitIndex } from "./favoriteTargets.js";
@@ -51,7 +51,7 @@ export const planRouteDeclaration: ToolDeclaration = {
       reads: true,
       summary: "area(지역)로 성지 코스를 짠다. date/startTime은 참고용이고, 이미 방문한 곳은 자동으로 빠진다.",
       flags: [
-        { name: "area", type: "string", required: true, description: "지역 (예: 홍대, 성수)" },
+        { name: "area", type: "string", description: "지역 (예: 홍대, 성수, 서울, Seoul, Yongsan-gu, 首尔, ソウル — 한국어·영어·일본어·중국어 지명 모두 가능). 사용자가 지역을 말하지 않았으면 비워 둔다: 최애 그룹 성지가 가장 많은 지역을 골라 짜고 autoArea로 알려 준다" },
         { name: "date", type: "string", description: "날짜 (예: 2026-10-24). 참고용, 영업시간 검증에는 쓰지 않음" },
         { name: "startTime", type: "string", description: "하루 시작 시각 HH:MM. 10:00~21:00 안에서만, 생략 시 10:00" },
         { name: "maxStops", type: "integer", minimum: 1, maximum: 6, description: "하루당 최대 코스 수 (기본 4)" },
@@ -73,7 +73,7 @@ export const planRouteDeclaration: ToolDeclaration = {
           name: "member",
           type: "string",
           description:
-            "사용자의 최애 멤버 (기억하고 있다면 넘긴다). 그 멤버가 실제로 다녀간 성지를 코스에서 가장 먼저 넣는다.",
+            "사용자가 이번에 말한 멤버. 성지는 그룹 단위라 그 멤버의 그룹이 다녀간 곳을 모두 대상으로 하고, 그 멤버 개인 기록이 있는 곳을 조금 더 먼저 넣는다. 비우면 저장된 최애 전체를 기준으로 한다.",
         },
         {
           name: "group",
@@ -113,8 +113,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     return { status: "rejected", reason: "알 수 없는 동작이에요." };
   }
   const args = invocation.args as Record<string, unknown>;
-  const area = String(args.area ?? "").trim();
-  if (!area) return { status: "rejected", reason: "area(지역)가 필요해요." };
+  let area = String(args.area ?? "").trim();
   const date = typeof args.date === "string" ? args.date : null;
   const maxStops = typeof args.maxStops === "number" ? Math.min(6, Math.max(1, args.maxStops)) : 4;
   const days = typeof args.days === "number" ? Math.min(3, Math.max(1, Math.round(args.days))) : 1;
@@ -123,7 +122,45 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const user = context.user ?? "demo-user";
   const [places, items, state, aliases] = await Promise.all([loadPlaces(), loadItems(), readState(user), loadAliases()]);
 
-  const areaPlaces = places.filter((place) => placeMatchesArea(place, area));
+  // 최애: 사용자가 이번에 멤버·그룹을 말했으면 그 하나, 아니면 저장된 최애 전체(앞 순서 우선).
+  const { targets } = favoriteTargets(args, state.preferences.favorites, items, aliases);
+
+  // 지역을 말하지 않았으면: 최애 그룹 성지가 가장 많은 지역(시·도 + 구·군 단위)을 고른다.
+  let autoArea: { picked: string; region: string; favoritePlaceCount: number; groups: string[]; reason: string } | null = null;
+  let areaPlaces: Place[];
+  if (!area) {
+    if (!targets.length) return { status: "rejected", reason: "area(지역)나 최애(member/group) 중 하나는 있어야 해요." };
+    const counts = new Map<string, { sample: Place; count: number; memberCount: number }>();
+    for (const place of places) {
+      if (visitGroups(place).length > 1 || state.visitedPlaces.includes(place.id)) continue; // 여러 그룹이 섞인 공연장은 지역 고르기에서 뺀다
+      if (groupVisitIndex(place, targets, aliases) < 0 && memberVisitIndex(place, targets, aliases) < 0) continue;
+      const entry = counts.get(place.region) ?? { sample: place, count: 0, memberCount: 0 };
+      entry.count += 1;
+      if (memberVisitIndex(place, targets, aliases) >= 0) entry.memberCount += 1;
+      counts.set(place.region, entry);
+    }
+    const best = [...counts.values()].sort((a, b) => b.count - a.count || b.memberCount - a.memberCount)[0];
+    if (!best) {
+      const groupNames = [...new Set(targets.map((t) => t.groupName).filter(Boolean))].join(", ");
+      const result = { status: "no_data", area: null, reason: `${groupNames || "최애"} 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
+      emitCard({ tool: "planRoute", data: result, user: context.user }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
+      return result as unknown as JsonValue;
+    }
+    area = areaLabel(best.sample);
+    const groups = [...new Set(targets.map((t) => t.groupName).filter((g): g is string => Boolean(g)))];
+    autoArea = {
+      picked: area,
+      region: best.sample.region,
+      favoritePlaceCount: best.count,
+      groups,
+      reason: `지역을 말하지 않아서 ${groups.join(", ") || "최애"} 성지가 가장 많은 ${area}(${best.count}곳)로 골랐다. 답할 때 어디로 골랐는지 한 줄로 말한다.`,
+    };
+    areaPlaces = places.filter((place) => place.region === best.sample.region);
+  } else {
+    areaPlaces = places.filter((place) => placeMatchesArea(place, area));
+    // "Seoul", "首尔"로 물어도 화면·답변에는 데이터의 한국어 지역명("서울")을 쓰고, 영문 표기는 거기서 만든다.
+    area = displayArea(areaPlaces, area);
+  }
   if (areaPlaces.length === 0) {
     const result = { status: "no_data", area, areaEn: romanizePlaceName(area), reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
     emitCard({ tool: "planRoute", data: result, user: context.user }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
@@ -143,10 +180,8 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const isBrandMatch = (place: Place): boolean =>
     place.type === "매장" && Array.from(interestingBrands).some((brand) => place.name.includes(brand) || place.note.includes(brand));
 
-  // 우선순위: ① 최애 멤버가 실제로 다녀간 곳(단체 방문도 그룹이 맞으면 포함) ② 같은 그룹 멤버가 다녀간 곳
+  // 우선순위: ① 최애 멤버 개인 방문 기록이 있는 곳 ② 최애 그룹이 다녀간 곳(단체 방문 포함 — 성지는 그룹 단위)
   // ③ 성지(isFandomSpot)이거나 착용 브랜드 매장 ④ 그 외 일반 명소(자리가 남을 때만).
-  // 최애: 사용자가 이번에 멤버·그룹을 말했으면 그 하나, 아니면 저장된 최애 전체(앞 순서 우선).
-  const { targets } = favoriteTargets(args, state.preferences.favorites, items, aliases);
   const memberIndex = (place: Place) => memberVisitIndex(place, targets, aliases);
   const groupIndex = (place: Place) => groupVisitIndex(place, targets, aliases);
   const memberVisitMatch = (place: Place): boolean => memberIndex(place) >= 0;
@@ -237,7 +272,8 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const excludedVisited = areaPlaces.length - unvisited.length;
   const result = {
     area,
-    areaEn: romanizePlaceName(area), // 한국어가 아닌 화면·답변에서 쓰는 지역 영문 표기 (서울 → Seoul)
+    areaEn: romanizePlaceName(area),
+    ...(autoArea ? { autoArea } : {}), // 한국어가 아닌 화면·답변에서 쓰는 지역 영문 표기 (서울 → Seoul)
     date,
     days,
     startTime: formatMinutes(startMinutes),

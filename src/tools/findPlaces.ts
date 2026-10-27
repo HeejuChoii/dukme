@@ -20,8 +20,8 @@ export const findPlacesDeclaration: ToolDeclaration = {
         "이 결과로 지역 하나를 고른 뒤 planRoute를 호출해서 실제 코스를 짠다 — 지역을 추측해서 planRoute를 여러 번 부르지 않는다.",
       flags: [
         { name: "group", type: "string", description: "그룹명. 한글 정식 이름/별명 모두 가능 (예: NCT WISH, 위시)" },
-        { name: "member", type: "string", description: "멤버명. 한글 정식 이름/별명 모두 가능 (예: 시온, 오시온)" },
-        { name: "area", type: "string", description: "특정 지역으로만 좁히고 싶을 때만 (보통 생략)" },
+        { name: "member", type: "string", description: "멤버명. 한글 정식 이름/별명 모두 가능 (예: 시온, 오시온). 성지는 그룹 단위라 그 멤버의 그룹이 다녀간 곳을 전부 찾고, 멤버 개인 기록이 있는 지역은 hasFavoriteMemberVisit로 표시한다" },
+        { name: "area", type: "string", description: "특정 지역으로만 좁히고 싶을 때만 (보통 생략). 한국어·영어·일본어·중국어 지명 모두 가능 (예: 서울, Seoul, 首尔, Yongsan-gu)" },
       ],
     },
   ],
@@ -42,11 +42,10 @@ export const findPlacesHandler: ToolHandler = async (invocation, context) => {
     return { status: "rejected", reason: "group이나 member 중 하나는 있어야 해요. (저장된 최애도 없어요)" };
   }
   const memberVisitMatch = (place: Place) => memberVisitIndex(place, targets, aliases) >= 0;
-  // 멤버를 정한 대상은 그 멤버(또는 그 그룹 단체)가 다녀간 곳만, 그룹만 정한 대상은 그 그룹이 다녀간 곳.
+  // 성지는 그룹 단위: 멤버가 최애여도 그 멤버의 그룹이 다녀간 곳을 전부 센다(멤버 개인 기록은 hasFavoriteMemberVisit로만 표시).
+  // 그룹을 모르는 멤버(데이터에 없는 멤버)만 그 멤버 이름의 기록으로 찾는다.
   const targetMatch = (place: Place) => targets.some((t) =>
-    t.member
-      ? memberVisitIndex(place, [t], aliases) >= 0 && (!t.group || groupVisitIndex(place, [t], aliases) >= 0)
-      : groupVisitIndex(place, [t], aliases) >= 0);
+    t.group ? groupVisitIndex(place, [t], aliases) >= 0 : memberVisitIndex(place, [t], aliases) >= 0);
 
   const matched = places
     .filter((place) => placeMatchesArea(place, area))
@@ -70,6 +69,9 @@ export const findPlacesHandler: ToolHandler = async (invocation, context) => {
   const result = {
     query: { group: typeof args.group === "string" ? args.group : null, member: typeof args.member === "string" ? args.member : null, area: area || null },
     ...(fromSaved ? { usedSavedFavorites: targets.map((t) => [t.group, t.memberName ?? t.member].filter(Boolean).join(" ")) } : {}),
+    // 성지는 그룹 단위로 찾았다: "BTS가 다녀간 곳"으로 안내하고, 멤버 이름으로 "없다"고 말하지 않는다.
+    scope: "group",
+    searchedGroups: [...new Set(targets.map((t) => t.groupName).filter(Boolean))],
     totalCount: matched.length,
     regionCount: regions.length,
     regions: regions.map((r) => ({ region: r.region, count: r.count, hasFavoriteMemberVisit: r.hasFavoriteMemberVisit })),
