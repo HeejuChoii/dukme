@@ -8,3 +8,4 @@ croche-state/
 app-state/
 *.log
 .DS_Store
+users/

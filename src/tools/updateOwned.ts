@@ -45,6 +45,6 @@ export const updateOwnedHandler: ToolHandler = async (invocation, context) => {
     item,
     ownedCount,
   };
-  emitCard({ tool: "updateOwned", data: result }, dedupeKeyFor("updateOwned", invocation.key, args, context.causedBy));
+  emitCard({ tool: "updateOwned", data: result, user: context.user }, dedupeKeyFor("updateOwned", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

@@ -4,12 +4,9 @@
 // per the Croche guidance to "keep authoritative inventory in the app". Plain JSON on disk,
 // so it survives a server restart exactly like FileStorage does for the conversation.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const stateDir = path.join(here, "..", "app-state");
+import { appStateFile } from "./paths.js";
 
 // 최애는 여러 명일 수 있다 (예: BOYNEXTDOOR 태산 + aespa 카리나). 그룹만 좋아하면 member 없이,
 // 데이터에 없는 멤버면 group 없이 저장될 수 있다. 앞에 있을수록 우선(검색·코스 기본값).
@@ -35,6 +32,7 @@ export interface AppState {
   visitedPlaces: string[]; // place ids
   preferences: FanPreferences;
   purchaseClicks: number; // "사러 가기" 클릭 수 (데모용 카운터)
+  messagesSent: number; // 이 사용자가 보낸 메시지 수 (사용자당 상한, "처음부터" 하면 0부터)
   conversationLanguage?: "ko" | "en" | "ja" | "zh-CN" | "zh-TW"; // 마지막으로 판별된 대화 언어 (짧은 대답은 이걸 유지)
 }
 
@@ -55,12 +53,11 @@ export function migratePreferences(raw: unknown): FanPreferences {
 }
 
 function emptyState(): AppState {
-  return { wishlist: [], owned: [], visitedPlaces: [], preferences: {}, purchaseClicks: 0 };
+  return { wishlist: [], owned: [], visitedPlaces: [], preferences: {}, purchaseClicks: 0, messagesSent: 0 };
 }
 
-function stateFile(user: string): string {
-  return path.join(stateDir, `${user}.json`);
-}
+// 사용자별: DATA_DIR/users/<id>/app-state.json (paths.ts가 id 모양을 확인한다).
+const stateFile = appStateFile;
 
 export async function readState(user: string): Promise<AppState> {
   try {
@@ -71,6 +68,7 @@ export async function readState(user: string): Promise<AppState> {
       owned: parsed.owned ?? [],
       visitedPlaces: parsed.visitedPlaces ?? [],
       purchaseClicks: parsed.purchaseClicks ?? 0,
+      messagesSent: parsed.messagesSent ?? 0,
       ...(parsed.conversationLanguage ? { conversationLanguage: parsed.conversationLanguage } : {}),
       preferences: migratePreferences(parsed.preferences),
     };
@@ -81,8 +79,8 @@ export async function readState(user: string): Promise<AppState> {
 }
 
 async function writeStateRaw(user: string, state: AppState): Promise<void> {
-  await mkdir(stateDir, { recursive: true });
   const target = stateFile(user);
+  await mkdir(path.dirname(target), { recursive: true });
   // 임시 파일에 쓰고 rename — 동시 쓰기가 섞여서 JSON이 깨지는 걸 막는다 (rename은 원자적).
   const tmp = `${target}.${randomUUID()}.tmp`;
   await writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");

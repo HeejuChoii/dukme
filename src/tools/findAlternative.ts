@@ -45,6 +45,6 @@ export const findAlternativeHandler: ToolHandler = async (invocation, context) =
     }));
 
   const result = { original, maxPrice: maxPrice ?? null, count: alternatives.length, alternatives };
-  emitCard({ tool: "findAlternative", data: result }, dedupeKeyFor("findAlternative", invocation.key, args, context.causedBy));
+  emitCard({ tool: "findAlternative", data: result, user: context.user }, dedupeKeyFor("findAlternative", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

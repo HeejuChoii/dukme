@@ -74,6 +74,6 @@ export const findPlacesHandler: ToolHandler = async (invocation, context) => {
     regionCount: regions.length,
     regions: regions.map((r) => ({ region: r.region, count: r.count, hasFavoriteMemberVisit: r.hasFavoriteMemberVisit })),
   };
-  emitCard({ tool: "findPlaces", data: result }, dedupeKeyFor("findPlaces", invocation.key, args, context.causedBy));
+  emitCard({ tool: "findPlaces", data: result, user: context.user }, dedupeKeyFor("findPlaces", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

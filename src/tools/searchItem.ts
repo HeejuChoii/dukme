@@ -188,6 +188,6 @@ export const searchItemHandler: ToolHandler = async (invocation, context) => {
     count: results.length,
     results,
   };
-  emitCard({ tool: "searchItem", data: result }, dedupeKeyFor("searchItem", invocation.key, args, context.causedBy));
+  emitCard({ tool: "searchItem", data: result, user: context.user }, dedupeKeyFor("searchItem", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

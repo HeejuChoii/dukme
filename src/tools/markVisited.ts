@@ -44,6 +44,6 @@ export const markVisitedHandler: ToolHandler = async (invocation, context) => {
     invalidIds,
     visitedCount,
   };
-  emitCard({ tool: "markVisited", data: result }, dedupeKeyFor("markVisited", invocation.key, args, context.causedBy));
+  emitCard({ tool: "markVisited", data: result, user: context.user }, dedupeKeyFor("markVisited", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

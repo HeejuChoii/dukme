@@ -23,9 +23,15 @@ npm start
 
 ### 시연 중간에 처음부터 다시 하고 싶을 때
 
-화면 오른쪽 위 **"기억 초기화"** 버튼. 대화·기억(최애/사이즈/예산)·찜·보유·방문 기록·구매 연결 카운터까지 전부 비워지고, 시나리오 1부터 다시 시작할 수 있는 상태가 됨.
+화면 오른쪽 위 **"처음부터"** 버튼(또는 "덕질 기록" 패널의 "기억 초기화"). 그 브라우저 사용자의 대화·기억(최애/사이즈/예산)·찜·보유·방문 기록·구매 연결 카운터·대화 언어·메시지 수까지 전부 비워지고 첫 화면(예시 질문)으로 돌아감.
 
 ("새 대화" 버튼은 대화창만 비우고 기억은 남겨둠 — 기억이 유지되는 걸 보여주고 싶을 때 씀.)
+
+### 부스 모드 (방문자마다 분리)
+
+- 브라우저마다 익명 사용자(서명된 랜덤 UUID 쿠키)가 생기고, 사용자마다 Croche 인스턴스·저장 폴더(`DATA_DIR/users/<uuid>/`)·찜/보유 기록·화면 이벤트가 따로다. 같은 브라우저(부스 노트북)는 같은 사용자.
+- `BOOTH_IDLE_RESET=180`이면 3분 동안 입력이 없을 때 자동으로 "처음부터"(다음 관람객용). 부스 모드에서는 "처음부터" 버튼도 확인 창 없이 바로 초기화.
+- 비용 보호: 사용자당 메시지 `USER_MESSAGE_LIMIT`(기본 30, "처음부터"하면 다시 셈), 서버 전체 시간당 `GLOBAL_MESSAGES_PER_HOUR`(기본 600), 한 턴 Tool 호출 `TOOL_CALLS_PER_TURN`(기본 12). 넘으면 화면에 안내 문구.
 
 ### 문제가 생겼을 때 — 마지막 정상 커밋으로 되돌리기
 
@@ -49,10 +55,10 @@ npm start
 
 3. `.env` 파일은 git에 올라가지 않으므로(`.gitignore`), `git reset --hard`로 지워지지 않음 — 안심하고 되돌려도 됨.
 
-4. 되돌린 뒤에도 안 되면, `app-state/`와 `.croche/` 폴더를 지우고 다시 시작 (기억이 전부 초기화됨):
+4. 되돌린 뒤에도 안 되면, `users/` 폴더(사용자별 저장소, `DATA_DIR`를 바꿨다면 그 아래)를 지우고 다시 시작 (모든 방문자 기억이 초기화됨):
 
    ```sh
-   rm -rf app-state .croche
+   rm -rf users
    npm start
    ```
 
@@ -60,7 +66,7 @@ npm start
 
 | 증상 | 원인/조치 |
 |---|---|
-| `CROCHE_PROJECT_KEY / CROCHE_DEBUG_KEY가 없어요` | `.env` 파일이 없거나 비어있음. `node_modules`나 `.env`를 지운 적이 있다면 `croche debug-keys create --project <프로젝트ID>`로 다시 발급 |
+| `덕메 서버를 시작할 수 없어요: CROCHE_PROJECT_KEY…` | `.env` 파일이 없거나 비어있음(`.env.example` 참고). 로컬은 `CROCHE_DEBUG_KEY`, 운영은 `CROCHE_SERVER_KEY`. 디버그 키는 `croche debug-keys create --project <프로젝트ID>`로 다시 발급 |
 | `node: .env: not found` | `.env` 파일이 프로젝트 루트(`dukme/`)에 없음. 터미널 현재 위치가 `dukme/` 폴더인지 확인 |
 | 포트 3000이 이미 사용 중 | 이전에 띄운 서버가 안 꺼진 상태. `lsof -i :3000`으로 PID 찾아서 `kill <PID>`, 또는 `PORT=3001 npm start`로 다른 포트 사용 |
 | 같은 와이파이 팀원이 접속 안 됨 | 같은 와이파이인지 확인, 맥북 방화벽이 들어오는 연결을 막고 있는지 확인(시스템 설정 → 네트워크 → 방화벽) |
@@ -68,18 +74,54 @@ npm start
 ## 개발용 명령어
 
 ```sh
-npm start            # 서버 실행 (localhost:3000)
+npm start            # 서버 실행 (localhost:3000, .env 사용)
 npm run dev           # 파일 바뀌면 자동 재시작
 npm run typecheck     # TypeScript 타입 체크만
-npm run scenario      # 시나리오 1~6 자동 실행 + 모델별 비교 (docs/results.md 참고)
+npm test              # scripts/*.test.ts 전부 (Croche 연결 없이 도는 범위)
+npm run start:prod    # 운영 실행 (--env-file 없이, 환경변수는 Render가 넣어 줌)
 ```
+
+## Render 배포
+
+계속 켜져 있는 Node 서버 하나 + 영구 디스크로 올린다(Croche FileStorage는 폴더 하나를 프로세스 하나가 소유해야 해서 서버리스 불가). 설정은 레포의 `render.yaml`(Blueprint)에 있다.
+
+1. Render 대시보드 → **New → Blueprint** → 이 GitHub 레포 선택 → `render.yaml`을 읽어 `dukme` Web Service가 만들어진다.
+   - Node, `buildCommand: npm ci`, `startCommand: npm run start:prod`, `healthCheckPath: /health`
+   - 디스크 `dukme-data`를 `/data`에 1GB로 붙인다. **디스크는 유료 인스턴스(Starter 이상)에서만** 붙고, 디스크가 붙은 서비스는 인스턴스 1개로만 돈다(그래서 저장 폴더 소유자가 하나로 유지된다).
+2. 만들 때 값을 묻는 두 개(`sync: false`)를 입력한다. **키는 대시보드에만 넣고 코드·레포에는 절대 넣지 않는다.**
+   - `CROCHE_PROJECT_KEY` — Croche Studio 공개 프로젝트 키
+   - `CROCHE_SERVER_KEY` — Croche Studio 서버 키(`csk_…`). 디버그 키(`cdt_…`)는 로컬 개발용이라 운영에서는 거부된다.
+3. 배포가 끝나면 `https://<서비스>.onrender.com/health`가 `{"ok":true,…}`인지 확인 → 그 주소가 부스 URL.
+4. 키를 바꿀 때: Studio에서 새 서버 키 발급 → Render Environment에서 교체(재배포) → 이전 키 폐기.
+
+### 환경변수
+
+| 이름 | 필수 | 설명 |
+|---|---|---|
+| `CROCHE_PROJECT_KEY` | ✅ | Croche Studio 공개 프로젝트 키 |
+| `CROCHE_SERVER_KEY` | 운영 ✅ | 서버 키 `csk_…` (Render에만) |
+| `CROCHE_DEBUG_KEY` | 로컬 | 디버그 키 `cdt_…` (로컬 `.env`에만). 서버 키가 있으면 서버 키를 씀 |
+| `SESSION_SECRET` | 운영 ✅ | 익명 사용자 쿠키 서명(32자 이상). `render.yaml`이 자동 생성(`generateValue`) |
+| `NODE_ENV` | 운영 | `production` (서버 키·SESSION_SECRET 필수 검사, 프록시 신뢰) |
+| `DATA_DIR` | | 저장 위치. 기본은 프로젝트 폴더, Render는 `/data` |
+| `PORT` / `HOST` | | Render가 `PORT`를 넣어 줌. HOST 기본 `0.0.0.0` |
+| `BOOTH_IDLE_RESET` | | 부스 자동 "처음부터"(초). `180` = 3분, 0/비우면 끔 |
+| `USER_MESSAGE_LIMIT` | | 사용자당 메시지 수 (기본 30) |
+| `GLOBAL_MESSAGES_PER_HOUR` | | 서버 전체 시간당 메시지 수 (기본 600) |
+| `TOOL_CALLS_PER_TURN` | | 한 턴 Tool 호출 수 (기본 12) |
+| `MAX_SESSIONS` | | 동시에 열어 두는 사용자 인스턴스 수 (기본 50) |
+| `SESSION_IDLE_MINUTES` | | 이 시간 안 쓴 인스턴스는 닫음(저장 폴더는 유지, 기본 20) |
+| `NEW_USERS_PER_IP_PER_HOUR` | | IP 하나에서 시간당 새 익명 사용자 수 (기본 100). 부스 와이파이처럼 한 IP를 여럿이 쓰면 늘릴 것 |
+| `TRUST_PROXY` | | 프록시의 `X-Forwarded-For/Proto`를 믿을지 (`NODE_ENV=production`이면 기본 1) |
 
 ## 구조
 
 - `data/items.json`, `data/places.json`, `data/aliases.json` — 목데이터 (나중에 실제 DB로 교체 가능, PRD §6)
-- `src/server.ts` — Croche 연결 + 웹 서버
+- `src/server.ts` — 웹 서버(HTTP·SSE), 사용자별 요청 처리
+- `src/agent/` — Croche 호출은 여기에만 (`croche.ts`: Croche.open, `pool.ts`: 사용자별 인스턴스, `prompt.ts`: 지침, `toolGuard.ts`: 한 턴 Tool 상한). SDK 마이그레이션 때 이 폴더만 고친다
+- `src/config.ts` — 환경변수 / `src/identity.ts` — 서명된 익명 사용자 쿠키 / `src/paths.ts` — 사용자별 저장 경로
 - `src/tools/` — Croche Tool 6종 (searchItem/findAlternative/addWishlist/planRoute/updateOwned/markVisited)
-- `src/state.ts` — 찜/보유/방문 목록의 앱 authoritative 저장소 (`app-state/`, FileStorage와 별도)
+- `src/state.ts` — 찜/보유/방문 목록의 앱 authoritative 저장소 (`DATA_DIR/users/<id>/app-state.json`, Croche FileStorage는 같은 폴더의 `croche/`)
 - `public/index.html` — 채팅 화면 1장
 - `docs/notes.md` — 작업 중 판단 기록, `docs/results.md` — 모델 비교·페르소나 테스트 결과
 

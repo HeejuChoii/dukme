@@ -88,6 +88,16 @@
     background: #fff; color: var(--accent-dark); border: 1px solid var(--border-strong); box-shadow: none;
   }
   .btn.btn-ghost:hover { background: var(--panel-bg); }
+  /* "처음부터": 부스에서 다음 관람객이 바로 찾을 수 있게 헤더에서 가장 눈에 띄는 버튼 */
+  #btn-restart { font-size: .9rem; padding: .55rem .95rem; }
+  /* 첫 화면 예시 질문 */
+  .welcome { margin: 1.2rem 1rem .4rem; display: flex; flex-direction: column; gap: .5rem; align-items: flex-start; }
+  .welcome .welcome-title { font-size: .85rem; color: var(--muted); font-weight: 600; }
+  .welcome .example-btn {
+    border: 1px solid var(--border-strong); background: var(--bg); color: var(--accent-dark); border-radius: 999px;
+    padding: .55rem .95rem; font-size: .9rem; font-weight: 600; cursor: pointer; text-align: left; max-width: 100%;
+  }
+  .welcome .example-btn:hover { background: var(--accent-soft); }
 
   main { flex: 1; display: flex; min-height: 0; }
   #chat-col { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
@@ -273,6 +283,7 @@
     </div>
     <div class="spacer"></div>
     <button id="btn-memory-toggle" class="btn btn-ghost" type="button" data-i18n="btn.memory">덕질 기록</button>
+    <button id="btn-restart" class="btn" type="button" data-i18n="btn.restart">처음부터</button>
   </header>
 
   <main>
@@ -317,6 +328,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/markers.js"></script>
 <script>
   const log = document.getElementById('log');
   const avatar = document.getElementById('avatar');
@@ -350,6 +362,7 @@
       'visited.marked': '다녀온 걸로 기록했어요: {names}', 'visited.allAlready': '이미 전부 방문 기록에 있었어요.',
       'conn.lost': '연결이 잠깐 끊겼어, 다시 말해줄래?',
       'placeholder.initial': '덕메에게 말해보세요 (예: 내 최애는 위시 시온이야)', 'placeholder.short': '덕메에게 물어보세요',
+      'btn.restart': '처음부터', 'welcome.title': '이렇게 물어볼 수 있어요', 'limit.user': '이번 대화에서 나눌 수 있는 말을 다 썼어요. "처음부터"를 누르면 새로 시작할 수 있어요.', 'limit.global': '지금 덕메를 찾는 사람이 너무 많아요. 잠시 후에 다시 말 걸어 줘!', 'limit.busy': '지금 자리가 꽉 찼어요. 잠깐 뒤에 다시 시도해 줘!', 'limit.newUser': '잠시 후에 다시 시도해 주세요.',
       'btn.send': '보내기', 'btn.memory': '덕질 기록', 'btn.close': '닫기', 'btn.newChat': '새 대화', 'btn.resetMemory': '기억 초기화',
       'chat.new': '새 대화를 시작했어요. (기억은 유지돼요)',
       'confirm.reset': '대화와 기억(찜/보유/방문 포함)을 전부 초기화할까요? 시연을 처음부터 다시 할 때 쓰세요.',
@@ -383,6 +396,7 @@
       'visited.marked': 'Marked as visited: {names}', 'visited.allAlready': 'All of these were already marked as visited.',
       'conn.lost': 'Lost connection for a moment — could you say that again?',
       'placeholder.initial': 'Talk to Dukme (e.g. My bias is SION from NCT WISH)', 'placeholder.short': 'Ask Dukme',
+      'btn.restart': 'Start over', 'welcome.title': 'Try asking', 'limit.user': 'You\'ve reached the chat limit for this session. Tap "Start over" to begin again.', 'limit.global': 'Lots of fans are talking to Dukme right now. Please try again in a little while!', 'limit.busy': 'All seats are taken right now. Please try again in a moment!', 'limit.newUser': 'Please try again in a little while.',
       'btn.send': 'Send', 'btn.memory': 'My Fan Log', 'btn.close': 'Close', 'btn.newChat': 'New chat', 'btn.resetMemory': 'Reset memory',
       'chat.new': 'Started a new chat. (Memory is kept)',
       'confirm.reset': 'Reset the chat and all memory (including wishlist/owned/visited)? Use this to restart the demo.',
@@ -416,6 +430,7 @@
       'visited.marked': '行った場所として記録しました: {names}', 'visited.allAlready': 'すべてもう訪問済みでした。',
       'conn.lost': '接続が一瞬切れちゃった。もう一度言ってくれる?',
       'placeholder.initial': 'ドクメに話しかけてね(例: 推しはNCT WISHのSION)', 'placeholder.short': 'ドクメに聞いてみて',
+      'btn.restart': '最初から', 'welcome.title': 'こんなふうに聞いてみて', 'limit.user': 'この会話で話せる回数の上限に達しました。「最初から」を押すと新しく始められます。', 'limit.global': 'いまドクメに話しかけている人がとても多いです。少し時間をおいてもう一度話しかけてね!', 'limit.busy': 'いま満席です。少ししてからもう一度試してね!', 'limit.newUser': 'しばらくしてからもう一度お試しください。',
       'btn.send': '送信', 'btn.memory': '推し活記録', 'btn.close': '閉じる', 'btn.newChat': '新しい会話', 'btn.resetMemory': '記憶をリセット',
       'chat.new': '新しい会話を始めました。(記憶はそのまま)',
       'confirm.reset': '会話と記憶(お気に入り・所持・訪問を含む)をすべてリセットしますか?デモを最初からやり直すときに使います。',
@@ -449,6 +464,7 @@
       'visited.marked': '已记录为去过: {names}', 'visited.allAlready': '这些都已经在到访记录里了。',
       'conn.lost': '连接刚刚断了一下,能再说一次吗?',
       'placeholder.initial': '和 Dukme 聊聊吧(例: 我的本命是NCT WISH的SION)', 'placeholder.short': '问问 Dukme',
+      'btn.restart': '重新开始', 'welcome.title': '可以这样问', 'limit.user': '本次对话的次数已用完。点“重新开始”就能重新开始。', 'limit.global': '现在找 Dukme 的人太多了，请稍后再试！', 'limit.busy': '现在人满了，请稍等一下再试！', 'limit.newUser': '请稍后再试。',
       'btn.send': '发送', 'btn.memory': '追星记录', 'btn.close': '关闭', 'btn.newChat': '新对话', 'btn.resetMemory': '重置记忆',
       'chat.new': '已开始新对话。(记忆会保留)',
       'confirm.reset': '要重置对话和全部记忆(包括心愿单/已拥有/到访)吗?用于从头重新演示。',
@@ -482,6 +498,7 @@
       'visited.marked': '已記錄為去過: {names}', 'visited.allAlready': '這些都已經在到訪紀錄裡了。',
       'conn.lost': '連線剛剛斷了一下,能再說一次嗎?',
       'placeholder.initial': '和 Dukme 聊聊吧(例: 我的本命是NCT WISH的SION)', 'placeholder.short': '問問 Dukme',
+      'btn.restart': '重新開始', 'welcome.title': '可以這樣問', 'limit.user': '本次對話的次數已用完。點「重新開始」就能重新開始。', 'limit.global': '現在找 Dukme 的人太多了，請稍後再試！', 'limit.busy': '現在人滿了，請稍等一下再試！', 'limit.newUser': '請稍後再試。',
       'btn.send': '傳送', 'btn.memory': '追星紀錄', 'btn.close': '關閉', 'btn.newChat': '新對話', 'btn.resetMemory': '重置記憶',
       'chat.new': '已開始新對話。(記憶會保留)',
       'confirm.reset': '要重置對話和全部記憶(包括願望清單/已擁有/到訪)嗎?用於從頭重新示範。',
@@ -529,6 +546,7 @@
     if (!I18N[lang] || lang === uiLang) return;
     uiLang = lang;
     applyStaticI18n();
+    for (const el of document.querySelectorAll('.welcome-title')) el.textContent = t('welcome.title');
     const info = EXPRESSIONS[currentExpression];
     avatarStatusEl.textContent = info && info.text ? t(info.text) : '';
     refreshMemoryPanel();
@@ -679,10 +697,11 @@
       .trim();
   }
   // 내용이 있을 때만 말풍선을 만들고, 정리 후 비면 이미 만든 말풍선도 지운다.
-  // 스트리밍 조각에 표정 마커(:happy: 등)가 섞여 와도 말풍선에는 보이지 않게 뺀다(표정은 message.end의 markers로).
-  const MARKER_TEXT = /:(?:happy|think|cheer|sorry):/g;
-  function setBubbleText(id, cls, text) {
-    const clean = tidyText(cls === 'agent' ? String(text || '').replace(MARKER_TEXT, '') : text);
+  // 덕메 답변의 표정 마커(:happy:, ": happy:", "：happy：" …)는 public/markers.js가 느슨하게 찾아 글자에서 뺀다.
+  // streaming이면 조각 끝에서 잘린 마커 후보도 잠깐 숨긴다.
+  function setBubbleText(id, cls, text, streaming) {
+    const shown = cls === 'agent' ? window.DukmeMarkers.extractMarkers(text, { streaming }).text : text;
+    const clean = tidyText(shown);
     if (!clean) {
       const existing = bubbles.get(id);
       if (existing) {
@@ -1154,6 +1173,8 @@
     }
     // source === 'agent'
     if (event.type === 'input' && event.kind === 'user') {
+      removeWelcome();
+      markActivity();
       ensureTurn(event.id);
       setBubbleText(event.id, 'you', event.text);
       scrollDown();
@@ -1161,19 +1182,16 @@
     if (event.type === 'message.delta') {
       const raw = (rawText.get(event.id) || '') + event.text;
       rawText.set(event.id, raw);
-      setBubbleText(event.id, 'agent', raw);
+      setBubbleText(event.id, 'agent', raw, true);
       scrollDown();
     }
     if (event.type === 'message.end') {
-      turnAgentText += event.text || '';
       rawText.set(event.id, event.text);
-      setBubbleText(event.id, 'agent', event.text); // 최종 텍스트 기준으로 다시 정리 (비면 말풍선 없음)
-      const markers = event.markers || [];
-      const resolved = markers.includes('cheer') ? 'cheer'
-        : markers.includes('happy') ? 'happy'
-        : markers.includes('sorry') ? 'sorry'
-        : markers.includes('think') ? 'think'
-        : 'idle';
+      setBubbleText(event.id, 'agent', event.text, false); // 최종 텍스트 기준으로 다시 정리 (비면 말풍선 없음)
+      // SDK가 알아본 마커 + SDK가 못 알아본 느슨한 마커(": happy:" 등)를 합쳐 표정을 정한다.
+      const extracted = window.DukmeMarkers.extractMarkers(event.text);
+      turnAgentText += extracted.text;
+      const resolved = window.DukmeMarkers.resolveExpression([...(event.markers || []), ...extracted.markers]);
       setExpression(resolved);
       // 말풍선 옆 작은 얼굴은 그 메시지가 끝난 순간의 표정을 그대로, 지연 없이 바로 보여준다
       // (상단 큰 아바타는 최소 노출 시간을 지키려고 늦게 바뀔 수 있지만, 이건 그 메시지 자체의 기록이라 바로 반영).
@@ -1191,14 +1209,28 @@
       setExpression('think');
       if (!event.tools || event.tools.some((t) => SEARCH_TOOLS.includes(t))) showSearchingNote();
     }
+    if (event.type === 'state') {
+      agentRunning = event.status === 'running';
+      // 답변을 읽는 시간도 활동으로 본다(부스 자동 초기화가 답이 끝나자마자 오지 않게).
+      if (event.status === 'idle') markActivity();
+    }
     if (event.type === 'state' && event.status === 'idle') finishTurnSearch();
   };
 
   async function sendText(text) {
     // 네트워크 오류면 조용히 다시 시도하지 않고, 한 번 안내만 하고 사용자가 다시 말하게 한다.
+    removeWelcome();
+    markActivity();
     try {
       const res = await fetch('/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // 과금 보호 상한·자리 부족은 연결 오류가 아니라 안내 문구로.
+        let code = '';
+        try { code = (await res.json()).error || ''; } catch { /* 본문 없음 */ }
+        const key = LIMIT_NOTICE[code];
+        if (key) { systemNote(t(key)); return; }
+        throw new Error(`HTTP ${res.status}`);
+      }
     } catch (err) {
       console.warn('메시지 전송 실패:', err);
       systemNote(t('conn.lost'));
@@ -1241,13 +1273,23 @@
     resetTurnSearch();
     rawText.clear();
     resetExpression();
+    renderWelcome();
     systemNote(t('chat.new'));
     await refreshMemoryPanel();
   };
 
-  document.getElementById('btn-reset-memory').onclick = async () => {
-    if (!confirm(t('confirm.reset'))) return;
-    await fetch('/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'all' }) });
+  // "처음부터"(헤더)와 "기억 초기화"(패널)는 같다: 대화 + AI 기억 + 찜/보유/방문 + 대화 언어 + 메시지 수까지 비우고 첫 화면으로.
+  // 부스 모드의 자동 초기화도 이걸 쓴다(묻지 않고, 안내 문구 없이 첫 화면만).
+  async function resetAll({ ask = true, auto = false } = {}) {
+    if (ask && !confirm(t('confirm.reset'))) return;
+    try {
+      const res = await fetch('/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'all' }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.warn('초기화 실패:', err);
+      if (!auto) systemNote(t('conn.lost'));
+      return;
+    }
     log.innerHTML = '';
     bubbles.clear();
     miniAvatars.clear();
@@ -1257,13 +1299,68 @@
     rawText.clear();
     resetExpression();
     purchaseCounterEl.classList.remove('show');
+    closeDrawer();
     hasSentMessage = false;
-    // 기억 초기화는 다음 관람객을 위한 처음 상태: 서버도 대화 언어를 비웠으니 화면도 기본(한국어)으로 돌리고 안내도 한국어로.
+    // 다음 관람객을 위한 처음 상태: 서버도 대화 언어를 비웠으니 화면도 기본(한국어)으로 돌리고 안내도 한국어로.
     setUiLang('ko');
+    document.getElementById('text').value = '';
     document.getElementById('text').placeholder = t('placeholder.initial');
-    systemNote(t('chat.resetDone'));
+    renderWelcome();
+    if (!auto) systemNote(t('chat.resetDone'));
+    markActivity();
     refreshMemoryPanel();
-  };
+  }
+  document.getElementById('btn-reset-memory').onclick = () => resetAll({ ask: true });
+  // 부스 모드에서는 묻지 않고 바로(관람객이 바뀔 때 쓰는 버튼이라).
+  document.getElementById('btn-restart').onclick = () => resetAll({ ask: !boothIdleMs });
+
+  // 첫 화면 예시 질문 (언어별로 하나씩 보여 주려고 문구는 번역하지 않는다).
+  const EXAMPLE_QUESTIONS = ['사쿠야 손민수템 보여줘', '사쿠야 성지 코스 짜줘', 'Plan me a BTS fan-spot course in Seoul'];
+  function renderWelcome() {
+    removeWelcome();
+    const box = document.createElement('div');
+    box.className = 'welcome';
+    const title = document.createElement('div');
+    title.className = 'welcome-title';
+    title.textContent = t('welcome.title');
+    box.append(title);
+    for (const q of EXAMPLE_QUESTIONS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'example-btn';
+      btn.textContent = q;
+      btn.onclick = () => {
+        hasSentMessage = true;
+        document.getElementById('text').placeholder = t('placeholder.short');
+        sendText(q);
+      };
+      box.append(btn);
+    }
+    log.prepend(box);
+  }
+  function removeWelcome() {
+    for (const el of log.querySelectorAll('.welcome')) el.remove();
+  }
+
+  const LIMIT_NOTICE = { user_limit: 'limit.user', global_limit: 'limit.global', busy: 'limit.busy', new_user_limit: 'limit.newUser' };
+
+  // 부스 모드: BOOTH_IDLE_RESET(초) 동안 입력이 없으면 자동으로 "처음부터". 서버 /config로 켜고 끈다.
+  let boothIdleMs = 0;
+  let lastActivity = Date.now();
+  let agentRunning = false;
+  function markActivity() { lastActivity = Date.now(); }
+  for (const type of ['pointerdown', 'keydown', 'touchstart', 'wheel']) window.addEventListener(type, markActivity, { passive: true });
+  const hasConversation = () => bubbles.size > 0 || log.querySelector('.cards, .row.system') !== null;
+  setInterval(() => {
+    if (!boothIdleMs || agentRunning) return;
+    if (Date.now() - lastActivity < boothIdleMs) return;
+    if (!hasConversation()) { markActivity(); return; }
+    resetAll({ ask: false, auto: true });
+  }, 5000);
+  fetch('/config').then((r) => r.json()).then((config) => {
+    boothIdleMs = Math.max(0, Number(config.boothIdleResetSeconds) || 0) * 1000;
+    document.body.classList.toggle('booth', boothIdleMs > 0);
+  }).catch(() => { /* 설정을 못 받으면 부스 모드 꺼진 채로 */ });
 
   // 기억 패널의 한 줄: 텍스트 + "삭제" 버튼. 사용자가 직접 지울 수 있게 한다 (PRD §7).
   function memRow(text, onDelete) {
@@ -1293,6 +1390,7 @@
   async function refreshMemoryPanel() {
     const seq = ++memoryPanelSeq;
     const res = await fetch('/state');
+    if (!res.ok) return;
     const data = await res.json();
     if (seq !== memoryPanelSeq) return;
     // 새로고침해도 직전 대화 언어로 화면을 연다.
@@ -1380,6 +1478,7 @@
   }
 
   applyExpression('idle'); // 페이지 열리면 바로 SVG 마스코트로 (정적 HTML의 이모지 대체)
+  renderWelcome();
   refreshMemoryPanel();
 </script>
 </html>

@@ -126,7 +126,7 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
   const areaPlaces = places.filter((place) => placeMatchesArea(place, area));
   if (areaPlaces.length === 0) {
     const result = { status: "no_data", area, areaEn: romanizePlaceName(area), reason: `'${area}' 지역의 성지 정보는 아직 확인되지 않은 정보예요.`, course: [] as unknown[] };
-    emitCard({ tool: "planRoute", data: result }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
+    emitCard({ tool: "planRoute", data: result, user: context.user }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
     return result as unknown as JsonValue;
   }
 
@@ -245,6 +245,6 @@ export const planRouteHandler: ToolHandler = async (invocation, context) => {
     count: course.length,
     course,
   };
-  emitCard({ tool: "planRoute", data: result }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
+  emitCard({ tool: "planRoute", data: result, user: context.user }, dedupeKeyFor("planRoute", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { appStateFile } from '../src/paths.js';
 import { extractExplicitPreferences } from '../src/explicitPreferences.js';
 import { applyFavoriteChange, buildFavoriteCatalog, canonicalGroup, detectFavoriteMode, noteFavoriteChange } from '../src/favorite.js';
 import { savePreferencesHandler } from '../src/tools/savePreferences.js';
@@ -51,9 +51,8 @@ try {
   assert.deepEqual(await favoritesOf(), [KARINA]);
 
   // 4) 예전 형식 app-state(favoriteGroup/favoriteMember) 불러오기
-  const stateDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app-state');
-  await mkdir(stateDir, { recursive: true });
-  await writeFile(path.join(stateDir, `${user}.json`), JSON.stringify({
+  await mkdir(path.dirname(appStateFile(user)), { recursive: true });
+  await writeFile(appStateFile(user), JSON.stringify({
     wishlist: ['item_096'], owned: [], visitedPlaces: [], purchaseClicks: 2,
     preferences: { favoriteGroup: 'BOYNEXTDOOR', favoriteMember: '태산', budget: 50000 },
   }));
@@ -66,7 +65,7 @@ try {
   const raw = await readState(user);
   assert.ok(!('favoriteGroup' in raw.preferences) && !('favoriteMember' in raw.preferences), '저장은 새 형식으로만');
   // 그룹만 있던 예전 형식
-  await writeFile(path.join(stateDir, `${user}.json`), JSON.stringify({ preferences: { favoriteGroup: 'IVE' } }));
+  await writeFile(appStateFile(user), JSON.stringify({ preferences: { favoriteGroup: 'IVE' } }));
   assert.deepEqual((await readState(user)).preferences, { favorites: [{ group: 'IVE' }] });
 
   // ── 추가/교체/삭제 구분 ──────────────────────────────────────────────────

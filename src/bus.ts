@@ -5,6 +5,8 @@
 export interface CardEvent {
   tool: "searchItem" | "findAlternative" | "addWishlist" | "planRoute" | "updateOwned" | "markVisited" | "findPlaces";
   data: unknown;
+  /** 이 카드를 받을 사용자(Tool context.user). 서버는 그 사용자의 화면에만 보낸다 — 방문자끼리 섞이지 않게. */
+  user: string | null | undefined;
 }
 
 type Listener = (event: CardEvent) => void;

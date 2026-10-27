@@ -37,6 +37,6 @@ export const addWishlistHandler: ToolHandler = async (invocation, context) => {
   });
 
   const result = { added: !already, alreadyInWishlist: already, item, wishlistCount };
-  emitCard({ tool: "addWishlist", data: result }, dedupeKeyFor("addWishlist", invocation.key, args, context.causedBy));
+  emitCard({ tool: "addWishlist", data: result, user: context.user }, dedupeKeyFor("addWishlist", invocation.key, args, context.causedBy));
   return result as unknown as JsonValue;
 };
