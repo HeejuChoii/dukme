@@ -140,6 +140,12 @@
   .row.agent .bubble { background: var(--panel-bg); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .row.system .bubble { background: transparent; color: var(--muted); font-size: .8rem; margin: 0 auto; }
 
+  .pp-card { border: 1px solid var(--border); border-radius: var(--radius-card); padding: .75rem .85rem; background: var(--bg); box-shadow: var(--shadow-card); }
+  .pp-card .pp-title { font-weight: 600; margin-bottom: .15rem; }
+  .pp-card .pp-meta { font-size: .85rem; color: var(--muted); margin-bottom: .55rem; }
+  .pp-card .pp-note { font-size: .78rem; color: var(--muted); margin-top: .45rem; }
+  .pp-card .pp-done { font-weight: 600; color: #1a7f4b; }
+  .pp-card .pp-err { color: #b42318; font-size: .85rem; }
   .cards { display: flex; flex-direction: column; gap: .5rem; padding: 0 1rem; }
   .card-group-label { font-size: .8rem; color: var(--muted); margin: .2rem 0 0; }
   .item-card {
@@ -1138,7 +1144,78 @@
     else turnHadEmptySearch = true;
   }
 
+  // ── PayPal: 에이전트가 주문을 준비하면(buyWithPayPal) 팬이 여기서 직접 승인한다. 승인 없이는 결제되지 않는다.
+  let paypalConfig = null;
+  let paypalSdk = null;
+  function loadPayPalSdk() {
+    if (paypalSdk) return paypalSdk;
+    paypalSdk = fetch('/config').then((r) => r.json()).then((config) => {
+      paypalConfig = config;
+      if (!config.paypalClientId) throw new Error('paypal_not_configured');
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(config.paypalClientId) + '&currency=' + (config.paypalCurrency || 'USD') + '&intent=capture&components=buttons';
+        script.onload = () => resolve(window.paypal);
+        script.onerror = () => reject(new Error('paypal_sdk_failed'));
+        document.head.append(script);
+      });
+    });
+    paypalSdk.catch(() => { paypalSdk = null; });
+    return paypalSdk;
+  }
+  const ppText = (ko, en) => uiLang === 'ko' ? ko : en;
+  function renderBuyWithPayPal(data) {
+    if (!data || !data.orderId) return;
+    markFound();
+    const wrap = cardsBlock();
+    const card = document.createElement('div');
+    card.className = 'pp-card';
+    const title = document.createElement('div');
+    title.className = 'pp-title';
+    title.textContent = [data.item.brand, data.item.name].filter(Boolean).join(' · ');
+    const meta = document.createElement('div');
+    meta.className = 'pp-meta';
+    meta.textContent = '$' + data.amount + ' ' + data.currency + '  (' + won(data.priceKrw) + ')';
+    const buttons = document.createElement('div');
+    const note = document.createElement('div');
+    note.className = 'pp-note';
+    note.textContent = ppText('덕메는 주문만 준비해요. 버튼으로 직접 승인해야 결제돼요.', 'Dukme only prepares the order. Nothing is charged until you approve it.')
+      + (data.sandbox ? ppText(' (PayPal 샌드박스 테스트 결제)', ' (PayPal sandbox test payment)') : '');
+    card.append(title, meta, buttons, note);
+    wrap.append(card);
+    scrollDown();
+    loadPayPalSdk().then((paypal) => {
+      paypal.Buttons({
+        style: { layout: 'vertical', shape: 'pill', label: 'pay' },
+        createOrder: () => data.orderId,
+        onApprove: async ({ orderID }) => {
+          buttons.textContent = ppText('결제 확정 중…', 'Completing payment…');
+          const res = await fetch('/paypal/capture', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId: orderID }) });
+          const result = await res.json().catch(() => ({}));
+          buttons.textContent = '';
+          const done = document.createElement('div');
+          if (res.ok && result.status === 'COMPLETED') {
+            done.className = 'pp-done';
+            done.textContent = ppText('결제 완료! 보유 아이템에 추가했어요 🎉', 'Payment complete! Added to your owned items 🎉') + (result.captureId ? ' · ' + result.captureId : '');
+            refreshMemoryPanel();
+          } else {
+            done.className = 'pp-err';
+            done.textContent = ppText('결제를 확정하지 못했어요. 다시 시도해 주세요.', 'Could not complete the payment. Please try again.');
+          }
+          buttons.append(done);
+          scrollDown();
+        },
+        onCancel: () => { note.textContent = ppText('결제를 취소했어요. 마음 바뀌면 다시 말해 줘!', 'Payment cancelled. Ask again any time!'); },
+        onError: (err) => { console.error(err); note.textContent = ppText('PayPal 오류가 났어요.', 'PayPal error.'); },
+      }).render(buttons);
+    }).catch(() => {
+      buttons.className = 'pp-err';
+      buttons.textContent = ppText('PayPal을 불러오지 못했어요.', 'Could not load PayPal.');
+    });
+  }
+
   const handlers = {
+    buyWithPayPal: renderBuyWithPayPal,
     searchItem: renderSearchItem,
     findAlternative: renderFindAlternative,
     addWishlist: renderAddWishlist,

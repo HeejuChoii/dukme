@@ -3,7 +3,7 @@
 // publish their own structured result here, and the server forwards it to the page verbatim.
 // This keeps card rendering tied to the actual data the tool returned, not a re-parse of text.
 export interface CardEvent {
-  tool: "searchItem" | "findAlternative" | "addWishlist" | "planRoute" | "updateOwned" | "markVisited" | "findPlaces";
+  tool: "searchItem" | "findAlternative" | "addWishlist" | "planRoute" | "updateOwned" | "markVisited" | "findPlaces" | "buyWithPayPal";
   data: unknown;
   /** 이 카드를 받을 사용자(Tool context.user). 서버는 그 사용자의 화면에만 보낸다 — 방문자끼리 섞이지 않게. */
   user: string | null | undefined;

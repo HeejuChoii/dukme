@@ -13,6 +13,7 @@ import { Identity } from "./identity.js";
 import { HourlyLimit } from "./limits.js";
 import { crocheStorageDir } from "./paths.js";
 import { onCard } from "./bus.js";
+import { PAYPAL_CLIENT_ID, captureOrder, paypalEnabled, preparedOrder } from "./paypal.js";
 import { resetState, readState, updateState } from "./state.js";
 import { loadAliases, loadItems, loadPlaces, type Item } from "./data.js";
 import { diagnoseItemPreview, getMediaPreview } from "./mediaPreview.js";
@@ -158,7 +159,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/config") {
       // 화면이 알아야 하는 운영 설정(키·비밀값은 절대 넣지 않는다).
-      json(res, 200, { boothIdleResetSeconds: BOOTH_IDLE_RESET, userMessageLimit: LIMITS.userMessages });
+      json(res, 200, { boothIdleResetSeconds: BOOTH_IDLE_RESET, userMessageLimit: LIMITS.userMessages, paypalClientId: paypalEnabled() ? PAYPAL_CLIENT_ID : null, paypalCurrency: "USD" });
       return;
     }
     if (req.method === "GET" && url.pathname === "/media-preview") {
@@ -339,6 +340,31 @@ const server = createServer(async (req, res) => {
         state[list] = state[list].filter((x) => x !== id);
       }));
       json(res, 200, { ok: true });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/paypal/capture") {
+      // 팬이 PayPal 창에서 승인한 뒤에만 화면이 부른다. 이 사용자가 덕메로 만든 주문만 확정한다.
+      const payload = await readJson(req);
+      const orderId = String(payload.orderId ?? "").trim();
+      const order = preparedOrder(orderId);
+      if (!order || order.user !== userId) {
+        json(res, 404, { error: "unknown_order" });
+        return;
+      }
+      try {
+        const captured = await captureOrder(orderId);
+        if (captured.status === "COMPLETED") {
+          await pool.withUser(userId, () => updateState(userId, (state) => {
+            if (!state.owned.includes(order.itemId)) state.owned.push(order.itemId);
+            state.wishlist = state.wishlist.filter((id) => id !== order.itemId);
+            return null;
+          }));
+        }
+        json(res, 200, { ...captured, itemId: order.itemId, amount: order.amount });
+      } catch (error) {
+        console.error("paypal capture failed:", error);
+        json(res, 502, { error: "capture_failed" });
+      }
       return;
     }
     if (req.method === "POST" && url.pathname === "/purchase-click") {
