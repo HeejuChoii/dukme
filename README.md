@@ -1,3 +1,50 @@
+# Dukme — Buy What Your Idol Wore, From Anywhere
+
+**PayPal AI Hackathon 2026 submission.** Dukme is an AI fan agent for K-pop fans around the world. Ask what your idol wore, get the exact item (or a cheaper look-alike) from fan-verified data, and buy it with PayPal. The agent prepares the order; **only the fan can approve the payment.**
+
+## How it works
+
+1. **Ask** in any of 5 languages (EN / KO / JA / zh-CN / zh-TW): *"What bag did Riku carry at the airport?"*
+2. **Find** — the agent (Croche SDK, tool calling) searches item data from reCree and [Sonminsoo Wiki](https://sonminsoo.kr) and returns the verified item and budget alternatives.
+3. **Buy** — *"Buy it for me."* The agent calls the `buyWithPayPal` tool, which converts the KRW price to USD and creates a PayPal order (Orders API v2, sandbox).
+4. **Approve** — a PayPal button appears in the chat. The fan approves in PayPal; the server captures the payment (`POST /paypal/capture`) and moves the item to the fan's owned list.
+
+### Trust by design
+- The agent can **create** an order but can never **capture** it. Capture happens only after the fan approves in PayPal.
+- The server only captures orders that Dukme created for the same user.
+- Unverified fan-account items and items without a confirmed price are refused at checkout.
+
+## PayPal + AI used
+| | What | Where |
+|---|---|---|
+| PayPal | Orders API v2 (OAuth, create order, capture) — sandbox | `src/paypal.ts`, `src/server.ts` (`/paypal/capture`) |
+| PayPal | JavaScript SDK Buttons (fan approval in chat) | `public/index.html` (`renderBuyWithPayPal`) |
+| AI | Croche agent SDK (LLM agent with tools and long-term memory) | `src/agent/` |
+| AI tool | `buyWithPayPal` — agent-initiated checkout | `src/tools/buyWithPayPal.ts` |
+
+**Built during the hackathon (after Oct 1, 2026):** the PayPal integration — `src/paypal.ts`, `src/tools/buyWithPayPal.ts`, `/paypal/capture`, the in-chat PayPal approval card, and agent instructions for checkout. Item search, memory, and routes existed before.
+
+## Run it
+
+Requirements: Node 22+, a Croche project key, and PayPal sandbox credentials.
+
+```sh
+npm install
+cp .env.example .env
+# fill in CROCHE_PROJECT_KEY, CROCHE_DEBUG_KEY (or CROCHE_SERVER_KEY), SESSION_SECRET,
+# PAYPAL_CLIENT_ID and PAYPAL_SECRET (developer.paypal.com > Apps & Credentials > Sandbox)
+npm start
+# open http://localhost:3000
+```
+
+Try: *"My bias is Riku from NCT WISH. Show me what he wore."* → *"Buy the first one for me."* → approve with a PayPal sandbox **Personal** account.
+
+Deploy: `render.yaml` (Render Blueprint). Set the PayPal keys in the Render dashboard.
+
+License: MIT.
+
+---
+
 # 덕메
 
 K팝 팬이 최애 아이돌의 착용템과 성지(다녀간 장소)를 따라 할 수 있게 돕는, 내 덕질을 기억하는 AI 비서.

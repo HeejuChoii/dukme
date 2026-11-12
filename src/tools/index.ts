@@ -7,6 +7,7 @@ import { updateOwnedDeclaration, updateOwnedHandler } from "./updateOwned.js";
 import { markVisitedDeclaration, markVisitedHandler } from "./markVisited.js";
 import { findPlacesDeclaration, findPlacesHandler } from "./findPlaces.js";
 import { savePreferencesDeclaration, savePreferencesHandler } from "./savePreferences.js";
+import { buyWithPayPalDeclaration, buyWithPayPalHandler } from "./buyWithPayPal.js";
 
 export const toolDeclarations: ToolDeclaration[] = [
   searchItemDeclaration,
@@ -17,6 +18,7 @@ export const toolDeclarations: ToolDeclaration[] = [
   markVisitedDeclaration,
   findPlacesDeclaration,
   savePreferencesDeclaration,
+  buyWithPayPalDeclaration,
 ];
 
 export const toolHandlers: Record<string, ToolHandler> = {
@@ -28,4 +30,5 @@ export const toolHandlers: Record<string, ToolHandler> = {
   markVisited: markVisitedHandler,
   findPlaces: findPlacesHandler,
   savePreferences: savePreferencesHandler,
+  buyWithPayPal: buyWithPayPalHandler,
 };

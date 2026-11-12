@@ -94,7 +94,7 @@ try {
 
   // 화면 설정 (키는 절대 없음)
   const config = await (await fetch(`${base}/config`)).json();
-  assert.deepEqual(config, { boothIdleResetSeconds: 180, userMessageLimit: 0 });
+  assert.deepEqual(config, { boothIdleResetSeconds: 180, userMessageLimit: 0, paypalClientId: null, paypalCurrency: "USD" });
   assert.equal((await fetch(`${base}/markers.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
 
   // 잘못된 요청

@@ -22,6 +22,13 @@ services:
       - key: CROCHE_SERVER_KEY
         sync: false
       # 익명 사용자 쿠키 서명용. Render가 무작위 값을 만들어 준다(재배포해도 유지)
+      # PayPal 샌드박스 키 — 값은 대시보드에서 입력
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_SECRET
+        sync: false
+      - key: PAYPAL_ENV
+        value: sandbox
       - key: SESSION_SECRET
         generateValue: true
       - key: NODE_ENV
