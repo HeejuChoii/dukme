@@ -1154,7 +1154,7 @@
       if (!config.paypalClientId) throw new Error('paypal_not_configured');
       return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(config.paypalClientId) + '&currency=' + (config.paypalCurrency || 'USD') + '&intent=capture&components=buttons';
+        script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(config.paypalClientId) + '&currency=' + (config.paypalCurrency || 'USD') + '&intent=capture&components=buttons' + (uiLang === 'ko' ? '' : '&locale=en_US');
         script.onload = () => resolve(window.paypal);
         script.onerror = () => reject(new Error('paypal_sdk_failed'));
         document.head.append(script);
