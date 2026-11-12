@@ -2,14 +2,14 @@
 // 계속 켜져 있는 Node 서버 하나에서 돈다(서버리스 아님 — FileStorage는 폴더 하나를 프로세스 하나가 소유해야 한다).
 // 부스 모드: 브라우저마다 익명 사용자(서명된 UUID 쿠키) → 사용자별 Croche 인스턴스·저장 폴더·app-state·SSE.
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { AgentPool, PoolFullError, crocheOpener, type Session } from "./agent/index.js";
-import { BOOTH_IDLE_RESET, HOST, LIMITS, PORT, PROJECT_ROOT, TRUST_PROXY, crocheKeys, sessionSecret } from "./config.js";
-import { Identity } from "./identity.js";
+import { BOOTH_IDLE_RESET, DATA_DIR, HOST, LIMITS, PORT, PROJECT_ROOT, TRUST_PROXY, crocheKeys, sessionSecret } from "./config.js";
+import { Identity, isHttps } from "./identity.js";
 import { HourlyLimit } from "./limits.js";
 import { crocheStorageDir } from "./paths.js";
 import { onCard } from "./bus.js";
@@ -41,6 +41,27 @@ function lanAddresses(): string[] {
   }
   return addresses;
 }
+
+// 재배포하면 컨테이너 호스트 이름이 바뀐다. Croche 파일 잠금은 다른 호스트가 남긴 잠금을 절대 넘겨받지 않아서,
+// 예전 컨테이너가 남긴 *.lock.* 기록 때문에 기존 사용자의 저장소가 열리지 않는다(500).
+// 디스크를 붙인 Render 서비스는 인스턴스가 하나뿐이고, 이 시점의 이 프로세스는 아무 저장소도 열지 않았으니 지워도 안전하다.
+function clearStaleCrocheLocks(): void {
+  const usersDir = join(DATA_DIR, "users");
+  if (!existsSync(usersDir)) return;
+  let removed = 0;
+  for (const user of readdirSync(usersDir)) {
+    const dir = join(usersDir, user, "croche");
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      if (/\.lock\.\d+$/.test(file)) {
+        rmSync(join(dir, file), { force: true });
+        removed += 1;
+      }
+    }
+  }
+  if (removed) console.log(`예전 컨테이너의 Croche 잠금 ${removed}개 정리`);
+}
+clearStaleCrocheLocks();
 
 const identity = new Identity({ secret, trustProxy: TRUST_PROXY, newUsersPerIpPerHour: LIMITS.newUsersPerIpPerHour });
 const globalLimit = new HourlyLimit(LIMITS.globalMessagesPerHour);
@@ -183,6 +204,13 @@ const server = createServer(async (req, res) => {
       const preview = await getMediaPreview(type, id, source);
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "private, max-age=900" })
         .end(JSON.stringify(preview ?? { imageUrl: null }));
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/new-visitor") {
+      // 새 익명 사용자로 처음부터 시작한다(재배포 뒤 예전 저장소가 잠겨 열리지 않을 때의 탈출구).
+      res.setHeader("set-cookie", identity.cookie(randomUUID(), isHttps(req, TRUST_PROXY)));
+      res.writeHead(302, { location: "/" }).end();
       return;
     }
 
